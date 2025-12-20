@@ -1,0 +1,6 @@
+method: inverse_volatility
+
+vol_lookback_days: 60
+max_weight: 0.10
+cash_buffer: 0.05
+target_annual_vol: 0.10

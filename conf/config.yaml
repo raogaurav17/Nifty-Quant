@@ -1,0 +1,10 @@
+defaults:
+  - _self_
+  - universe: nifty50
+  - data: yahoo
+  - strategy: momentum_12_1
+  - portfolio: inverse_vol
+  - execution: india_equities
+  - backtest: monthly
+  - metrics: standard
+  - runtime: default

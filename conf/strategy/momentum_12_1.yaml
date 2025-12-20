@@ -1,0 +1,5 @@
+name: momentum_12_1
+
+lookback_days: 252
+skip_recent_days: 21
+top_k: 10
