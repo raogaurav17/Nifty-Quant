@@ -3,8 +3,8 @@ from typing import Dict, List
 
 import pandas as pd
 
-from src.interfaces.price_repository import PriceRepository
-from src.interfaces.execution_model import ExecutionModel
+from nifty_quant.interfaces.price_repository import PriceRepository
+from nifty_quant.interfaces.execution_model import ExecutionModel
 
 
 class FakePriceRepository(PriceRepository):

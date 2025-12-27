@@ -1,9 +1,9 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from src.bootstrap.config_schema import AppConfig
+from nifty_quant.bootstrap.config_schema import AppConfig
 
-# from src.application.run_backtest import run_backtest
+# from nifty_quant.application.run_backtest import run_backtest
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
