@@ -3,6 +3,7 @@ import pytest
 import pandas as pd
 
 from nifty_quant.domain.backtest.engine import BacktestEngine
+from nifty_quant.interfaces.execution_model import ExecutionModel
 from tests.domain.fakes import FakePriceRepository, ZeroCostExecutionModel
 
 
@@ -88,3 +89,41 @@ def test_zero_execution_costs(simple_price_data):
 
     # No NaNs or weird behavior
     assert result.returns.isnull().sum() == 0
+
+
+class FlatRateExecutionModel(ExecutionModel):
+    def __init__(self, rate: float) -> None:
+        self.rate = rate
+
+    def apply_costs(self, notional: float, turnover: float) -> float:
+        return notional * turnover * self.rate
+
+
+class AlternatingWeightEngine(BacktestEngine):
+    def _equal_weight(self, returns: pd.DataFrame) -> pd.DataFrame:
+        # Alternate full allocation between assets to force non-zero turnover.
+        weights = pd.DataFrame(0.0, index=returns.index, columns=returns.columns)
+        first_col = returns.columns[0]
+        second_col = returns.columns[1]
+
+        for i, dt in enumerate(returns.index):
+            target_col = first_col if i % 2 == 0 else second_col
+            weights.loc[dt, target_col] = 1.0
+
+        return weights
+
+
+def test_execution_costs_are_scaled_to_returns_space(simple_price_data):
+    repo = FakePriceRepository(simple_price_data)
+    execution = FlatRateExecutionModel(rate=0.01)
+    engine = AlternatingWeightEngine(repo, execution)
+
+    result = engine.run(
+        symbols=["AAA", "BBB"],
+        start_date=date(2020, 1, 1),
+        end_date=None,
+        initial_capital=1000.0,
+    )
+
+    # Net returns should remain in realistic return-space (far above -100%).
+    assert (result.returns > -1.0).all()

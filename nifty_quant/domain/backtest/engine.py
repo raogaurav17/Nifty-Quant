@@ -60,14 +60,16 @@ class BacktestEngine:
         # -------------------------
         # Transaction costs
         # -------------------------
-        turnover = weights.diff().abs().sum(axis=1)
+        turnover = weights.diff().abs().sum(axis=1).fillna(0.0)
         costs = portfolio_returns.copy()
 
         for dt in costs.index:
-            costs.loc[dt] = self.execution_model.apply_costs(
+            # Execution model returns absolute currency cost; convert to return-space.
+            absolute_cost = self.execution_model.apply_costs(
                 notional=initial_capital,
                 turnover=turnover.loc[dt],
             )
+            costs.loc[dt] = absolute_cost / initial_capital
 
         net_returns = portfolio_returns - costs
 

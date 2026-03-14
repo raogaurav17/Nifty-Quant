@@ -2,21 +2,14 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 
-# -------------------------
 # Universe
-# -------------------------
-
-
 @dataclass(frozen=True)
 class UniverseConfig:
     name: str
     symbols: List[str]
 
 
-# -------------------------
 # Data
-# -------------------------
-
 
 @dataclass(frozen=True)
 class DataConfig:
@@ -24,11 +17,7 @@ class DataConfig:
     adjusted_prices: bool
 
 
-# -------------------------
 # Strategy
-# -------------------------
-
-
 @dataclass(frozen=True)
 class StrategyConfig:
     name: str
@@ -37,9 +26,7 @@ class StrategyConfig:
     top_k: int
 
 
-# -------------------------
 # Portfolio Construction
-# -------------------------
 
 
 @dataclass(frozen=True)
@@ -51,22 +38,15 @@ class PortfolioConfig:
     target_annual_vol: float
 
 
-# -------------------------
 # Execution / Costs
-# -------------------------
-
-
 @dataclass(frozen=True)
 class ExecutionConfig:
     brokerage_cost: float
     slippage: float
 
 
-# -------------------------
+
 # Backtest
-# -------------------------
-
-
 @dataclass(frozen=True)
 class BacktestConfig:
     frequency: str
@@ -75,11 +55,7 @@ class BacktestConfig:
     end_date: Optional[str]
 
 
-# -------------------------
 # Metrics
-# -------------------------
-
-
 @dataclass(frozen=True)
 class MetricsConfig:
     risk_free_rate: float
