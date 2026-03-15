@@ -30,28 +30,36 @@ def main(cfg: DictConfig) -> None:
     cfg_dict = OmegaConf.to_object(cfg)
 
     # Typed, validated config (fails fast if invalid)
-    app_cfg = AppConfig(**cfg_dict)
+    _ = AppConfig(**cfg_dict)
 
-    if app_cfg.data.provider != "yahoo":
-        raise ValueError(f"Unsupported data provider: {app_cfg.data.provider}")
+    data_cfg = cfg_dict.get("data", {})
+    universe_cfg = cfg_dict.get("universe", {})
+    provider = str(data_cfg.get("provider", ""))
+    symbols = universe_cfg.get("symbols", [])
+
+    if provider != "yahoo":
+        raise ValueError(f"Unsupported data provider: {provider}")
+    if not symbols:
+        raise ValueError("universe.symbols must contain at least one symbol")
 
     price_repo = YahooPriceRepository()
+    execution_cfg = cfg_dict.get("execution", {})
     execution_model = IndiaEquitiesExecutionModel(
-        brokerage_rate=float(cfg_dict.get("execution", {}).get("brokerage_cost", 0.0003)),
-        slippage_rate=float(cfg_dict.get("execution", {}).get("slippage", 0.0005)),
+        brokerage_rate=float(execution_cfg["brokerage_cost"]),
+        slippage_rate=float(execution_cfg["slippage"]),
     )
     engine = BacktestEngine(price_repo=price_repo, execution_model=execution_model)
 
     backtest_cfg = cfg_dict.get("backtest", {})
-    start_date = _parse_date(backtest_cfg.get("start_date", "2018-01-01"))
+    start_date = _parse_date(backtest_cfg["start_date"])
     if start_date is None:
         raise ValueError("backtest.start_date must be set")
 
     end_date = _parse_date(backtest_cfg.get("end_date"))
-    initial_capital = float(backtest_cfg.get("initial_capital", 1_000_000.0))
+    initial_capital = float(backtest_cfg["initial_capital"])
 
     result = engine.run(
-        symbols=app_cfg.universe.symbols,
+        symbols=symbols,
         start_date=start_date,
         end_date=end_date,
         initial_capital=initial_capital,

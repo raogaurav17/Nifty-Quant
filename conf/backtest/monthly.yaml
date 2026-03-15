@@ -1,0 +1,4 @@
+frequency: monthly
+start_date: "2018-01-01"
+end_date: null
+initial_capital: 1_000_000
