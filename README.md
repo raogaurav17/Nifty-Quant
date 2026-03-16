@@ -28,7 +28,7 @@ Weight the 10 selected stocks proportional to `1 / σ` where σ is each stock's 
 | ------------------ | ------------------- |
 | Period             | Jan 2018 – Mar 2026 |
 | Total return       | +159.28%            |
-| NIFTY 50 benchmark | ~+85% (approx.)     |
+| NIFTY 50 benchmark | +121.61%            |
 | Initial capital    | ₹10,00,000          |
 | Final equity       | ₹25,92,800          |
 | Observations       | 2,316 trading days  |

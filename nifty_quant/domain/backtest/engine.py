@@ -343,8 +343,9 @@ class BacktestEngine:
         # Forward-fill remaining small gaps (trading halts, holidays)
         df = df.ffill()
 
-        # Drop any dates where fewer than top_k symbols have data
-        # (start of history before most symbols existed)
-        df = df.dropna(thresh=self.top_k)
+        # Drop dates where coverage is too low. For small universes, avoid
+        # requiring more symbols than actually exist.
+        min_required_symbols = min(self.top_k, len(df.columns))
+        df = df.dropna(thresh=min_required_symbols)
 
         return df
