@@ -8,6 +8,8 @@ from nifty_quant.domain.backtest.engine import BacktestEngine
 from nifty_quant.infrastructure.data.yahoo_price_repository import YahooPriceRepository
 from nifty_quant.infrastructure.execution.india_equities import IndiaEquitiesExecutionModel
 
+from dateutil.relativedelta import relativedelta
+
 # from nifty_quant.application.run_backtest import run_backtest
 
 
@@ -36,6 +38,8 @@ def main(cfg: DictConfig) -> None:
     universe_cfg = cfg_dict.get("universe", {})
     provider = str(data_cfg.get("provider", ""))
     symbols = universe_cfg.get("symbols", [])
+    strategy_cfg  = cfg_dict.get("strategy", {})
+    portfolio_cfg = cfg_dict.get("portfolio", {})
 
     if provider != "yahoo":
         raise ValueError(f"Unsupported data provider: {provider}")
@@ -48,7 +52,20 @@ def main(cfg: DictConfig) -> None:
         brokerage_rate=float(execution_cfg["brokerage_cost"]),
         slippage_rate=float(execution_cfg["slippage"]),
     )
-    engine = BacktestEngine(price_repo=price_repo, execution_model=execution_model)
+
+    
+
+    engine = BacktestEngine(
+        price_repo=price_repo,
+        execution_model=execution_model,
+        lookback_days=int(strategy_cfg.get("lookback_days", 252)),
+        skip_recent_days=int(strategy_cfg.get("skip_recent_days", 21)),
+        top_k=int(strategy_cfg.get("top_k", 10)),
+        vol_lookback_days=int(portfolio_cfg.get("vol_lookback_days", 60)),
+        max_weight=float(portfolio_cfg.get("max_weight", 0.10)),
+        cash_buffer=float(portfolio_cfg.get("cash_buffer", 0.05)),
+        target_annual_vol=float(portfolio_cfg.get("target_annual_vol", 0.10)),
+    )
 
     backtest_cfg = cfg_dict.get("backtest", {})
     start_date = _parse_date(backtest_cfg["start_date"])
@@ -58,9 +75,12 @@ def main(cfg: DictConfig) -> None:
     end_date = _parse_date(backtest_cfg.get("end_date"))
     initial_capital = float(backtest_cfg["initial_capital"])
 
+    # Pull 14 months extra so momentum signal has warmup data
+    fetch_start = start_date - relativedelta(months=14)
+
     result = engine.run(
         symbols=symbols,
-        start_date=start_date,
+        start_date=fetch_start,
         end_date=end_date,
         initial_capital=initial_capital,
     )
