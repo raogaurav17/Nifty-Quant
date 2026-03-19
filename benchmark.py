@@ -17,6 +17,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
+from nifty_quant.domain.metrics import calculate_metrics
+
 NIFTY_TICKER   = "^NSEI"     # NIFTY 50 price index (Yahoo Finance)
 TRADING_DAYS   = 252         # annualisation factor
 
@@ -46,47 +48,46 @@ def fetch_index(start: str, end: str | None) -> pd.Series:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def compute_metrics(prices: pd.Series, initial_capital: float) -> dict:
+    """
+    Compute benchmark metrics using the standardized metrics module.
+    Uses 6.5% risk-free rate for Sharpe ratio (India benchmark standard).
+    """
     returns       = prices.pct_change().dropna()
     equity_curve  = (1 + returns).cumprod() * initial_capital
 
     total_days    = (prices.index[-1] - prices.index[0]).days
     years         = total_days / 365.25
 
+    # Use the standardized metrics calculator (6.5% risk-free rate)
+    perf_metrics = calculate_metrics(returns=returns, equity_curve=equity_curve, risk_free_rate=0.065)
+
     total_return  = (prices.iloc[-1] / prices.iloc[0]) - 1
     cagr          = (1 + total_return) ** (1 / years) - 1
-
-    annual_vol    = returns.std(ddof=1) * np.sqrt(TRADING_DAYS)
 
     # Max drawdown
     rolling_max   = equity_curve.cummax()
     drawdowns     = (equity_curve - rolling_max) / rolling_max
     max_drawdown  = drawdowns.min()
 
-    # Sharpe (assume 6.5% risk-free rate for India)
-    rf_daily      = 0.065 / TRADING_DAYS
-    excess        = returns - rf_daily
-    sharpe        = (excess.mean() / returns.std(ddof=1)) * np.sqrt(TRADING_DAYS)
-
-    # Calmar
-    calmar        = cagr / abs(max_drawdown) if max_drawdown != 0 else np.nan
-
     return {
-        "start_date"     : prices.index[0].date(),
-        "end_date"       : prices.index[-1].date(),
-        "years"          : round(years, 2),
-        "start_value"    : round(float(prices.iloc[0]), 2),
-        "end_value"      : round(float(prices.iloc[-1]), 2),
-        "start_equity"   : round(initial_capital, 2),
-        "end_equity"     : round(float(equity_curve.iloc[-1]), 2),
-        "total_return"   : total_return,
-        "cagr"           : cagr,
-        "annual_vol"     : annual_vol,
-        "max_drawdown"   : max_drawdown,
-        "sharpe"         : sharpe,
-        "calmar"         : calmar,
-        "observations"   : len(returns),
-        "equity_curve"   : equity_curve,
-        "returns"        : returns,
+        "start_date"              : prices.index[0].date(),
+        "end_date"                : prices.index[-1].date(),
+        "years"                   : round(years, 2),
+        "start_value"             : round(float(prices.iloc[0]), 2),
+        "end_value"               : round(float(prices.iloc[-1]), 2),
+        "start_equity"            : round(initial_capital, 2),
+        "end_equity"              : round(float(equity_curve.iloc[-1]), 2),
+        "total_return"            : total_return,
+        "cagr"                    : cagr,
+        "annual_vol"              : perf_metrics.volatility_annual,
+        "max_drawdown"            : max_drawdown,
+        "sharpe"                  : perf_metrics.sharpe_ratio,
+        "sortino"                 : perf_metrics.sortino_ratio,
+        "calmar"                  : perf_metrics.calmar_ratio,
+        "downside_volatility"     : perf_metrics.downside_volatility_annual,
+        "observations"            : len(returns),
+        "equity_curve"            : equity_curve,
+        "returns"                 : returns,
     }
 
 
@@ -95,9 +96,9 @@ def compute_metrics(prices: pd.Series, initial_capital: float) -> dict:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def print_report(m: dict, strategy_return: float | None = None) -> None:
-    SEP = "─" * 45
+    SEP = "─" * 50
 
-    print(f"\n{'NIFTY 50 BENCHMARK REPORT':^45}")
+    print(f"\n{'NIFTY 50 BENCHMARK REPORT':^50}")
     print(SEP)
     print(f"  Period          {m['start_date']}  →  {m['end_date']}")
     print(f"  Duration        {m['years']:.1f} years  ({m['observations']:,} trading days)")
@@ -112,8 +113,12 @@ def print_report(m: dict, strategy_return: float | None = None) -> None:
     print(f"  CAGR            {m['cagr']:>+11.2%}  p.a.")
     print(f"  Annual vol      {m['annual_vol']:>11.2%}  p.a.")
     print(f"  Max drawdown    {m['max_drawdown']:>11.2%}")
-    print(f"  Sharpe ratio    {m['sharpe']:>11.2f}  (Rf = 6.5%)")
-    print(f"  Calmar ratio    {m['calmar']:>11.2f}")
+    print(SEP)
+    print(f"  Sharpe ratio    {m['sharpe']:>11.4f}  (Rf = 6.5%)")
+    print(f"  Sortino ratio   {m['sortino']:>11.4f}")
+    if m['calmar'] is not None:
+        print(f"  Calmar ratio    {m['calmar']:>11.4f}")
+    print(f"  Downside vol    {m['downside_volatility']:>11.2%}  p.a.")
 
     if strategy_return is not None:
         alpha = strategy_return - m['total_return']

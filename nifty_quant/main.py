@@ -5,6 +5,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from nifty_quant.bootstrap.config_schema import AppConfig
 from nifty_quant.domain.backtest.engine import BacktestEngine
+from nifty_quant.domain.metrics import calculate_metrics
 from nifty_quant.infrastructure.data.yahoo_price_repository import YahooPriceRepository
 from nifty_quant.infrastructure.execution.india_equities import IndiaEquitiesExecutionModel
 
@@ -88,11 +89,27 @@ def main(cfg: DictConfig) -> None:
     if result.equity_curve.empty:
         raise RuntimeError("Backtest produced no output. Check symbols/date range/data source.")
 
-    print("Backtest completed")
-    print(f"Start equity: {result.equity_curve.iloc[0]:,.2f}")
-    print(f"End equity:   {result.equity_curve.iloc[-1]:,.2f}")
-    print(f"Total return: {((result.equity_curve.iloc[-1] / initial_capital) - 1.0):.2%}")
-    print(f"Observations: {len(result.returns)}")
+    # Calculate performance metrics
+    metrics = calculate_metrics(returns=result.returns, equity_curve=result.equity_curve)
+
+    print("=" * 60)
+    print("BACKTEST RESULTS")
+    print("=" * 60)
+    print(f"Start equity:        ₹{result.equity_curve.iloc[0]:>15,.2f}")
+    print(f"End equity:          ₹{result.equity_curve.iloc[-1]:>15,.2f}")
+    print()
+    print(f"Total return:        {metrics.total_return:>15.2%}")
+    print(f"Annual return:       {metrics.annual_return:>15.2%}")
+    print(f"Annual volatility:   {metrics.volatility_annual:>15.2%}")
+    print()
+    print(f"Sharpe ratio:        {metrics.sharpe_ratio:>15.4f}")
+    print(f"Sortino ratio:       {metrics.sortino_ratio:>15.4f}")
+    print(f"Max drawdown:        {metrics.max_drawdown:>15.2%}")
+    if metrics.calmar_ratio is not None:
+        print(f"Calmar ratio:        {metrics.calmar_ratio:>15.4f}")
+    print()
+    print(f"Observations:        {len(result.returns):>15,}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
