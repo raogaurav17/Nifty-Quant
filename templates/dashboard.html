@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Nifty Quant Dashboard{% endblock %}
+
+{% block content %}
+<section class="hero-grid">
+  <article class="panel hero-panel">
+    <div class="hero-copy">
+      <p class="eyebrow">Momentum backtest</p>
+      <h2>12-1 strategy simulator</h2>
+      <p class="hero-text">
+        Adjust parameters and run the backtest to see portfolio performance, allocation weights, and key metrics.
+      </p>
+      <div class="hero-pills">
+        <span>{{ base_config.universe.name }}</span>
+        <span>{{ base_config.universe.symbols | length }} symbols</span>
+      </div>
+    </div>
+    <form class="control-form" method="get" action="/">
+      <input type="hidden" name="run" value="1">
+      <div class="field-grid">
+        <label>
+          <span>Start date</span>
+          <input type="date" name="start_date" value="{{ form_values.start_date }}">
+        </label>
+        <label>
+          <span>End date</span>
+          <input type="date" name="end_date" value="{{ form_values.end_date }}">
+        </label>
+        <label>
+          <span>Initial capital</span>
+          <input type="number" step="1000" name="initial_capital" value="{{ form_values.initial_capital }}">
+        </label>
+        <label>
+          <span>Top K</span>
+          <input type="number" step="1" min="1" name="top_k" value="{{ form_values.top_k }}">
+        </label>
+        <label>
+          <span>Lookback days</span>
+          <input type="number" step="1" min="1" name="lookback_days" value="{{ form_values.lookback_days }}">
+        </label>
+        <label>
+          <span>Skip recent days</span>
+          <input type="number" step="1" min="0" name="skip_recent_days" value="{{ form_values.skip_recent_days }}">
+        </label>
+        <label>
+          <span>Vol lookback</span>
+          <input type="number" step="1" min="1" name="vol_lookback_days" value="{{ form_values.vol_lookback_days }}">
+        </label>
+        <label>
+          <span>Max weight</span>
+          <input type="number" step="0.01" min="0" max="1" name="max_weight" value="{{ form_values.max_weight }}">
+        </label>
+        <label>
+          <span>Cash buffer</span>
+          <input type="number" step="0.01" min="0" max="1" name="cash_buffer" value="{{ form_values.cash_buffer }}">
+        </label>
+        <label>
+          <span>Target vol</span>
+          <input type="number" step="0.01" min="0" max="1" name="target_annual_vol" value="{{ form_values.target_annual_vol }}">
+        </label>
+      </div>
+      <button class="primary-btn" type="submit">Run backtest</button>
+    </form>
+  </article>
+
+  <aside class="panel status-panel">
+    {% if error_message %}
+    <div class="status-card error-card">
+      <p class="eyebrow">Run error</p>
+      <p>{{ error_message }}</p>
+    </div>
+    {% endif %}
+    {% if snapshot %}
+    <div class="status-card">
+      <p class="eyebrow">Key metrics</p>
+      <div class="metric-rail">
+        {% for card in summary_cards %}
+        <div class="metric-chip">
+          <span>{{ card.label }}</span>
+          <strong>{{ card.value }}</strong>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="status-card">
+      <p class="eyebrow">Ready to run</p>
+      <p>Configure parameters and click Run backtest.</p>
+    </div>
+    {% endif %}
+  </aside>
+</section>
+
+{% if snapshot %}
+<section class="grid-2">
+  <article class="panel chart-panel">
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Equity curve</p>
+        <h3>Portfolio value over time</h3>
+      </div>
+      <div class="value-pill">₹{{ "{:,.2f}".format(equity_end) if equity_end else "0.00" }}</div>
+    </div>
+    <div class="chart-frame">
+      <svg viewBox="0 0 1200 360" preserveAspectRatio="none" aria-label="Equity curve">
+        <defs>
+          <linearGradient id="lineGradient" x1="0%" x2="100%" y1="0%" y2="0%">
+            <stop offset="0%" stop-color="#ffffff" />
+            <stop offset="100%" stop-color="#c0c0c0" />
+          </linearGradient>
+          <linearGradient id="areaGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+            <stop offset="0%" stop-color="rgba(232,232,232,0.15)" />
+            <stop offset="100%" stop-color="rgba(232,232,232,0.01)" />
+          </linearGradient>
+          <pattern id="gridPattern" x="120" y="60" width="120" height="60" patternUnits="userSpaceOnUse">
+            <path d="M 120 0 L 0 0 0 60" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <!-- Grid background -->
+        <rect x="28" y="28" width="1144" height="304" fill="url(#gridPattern)" />
+        <!-- Chart area background -->
+        <path d="M 28,332 L 1172,332 L 1172,28 L 28,28 Z" fill="rgba(255,255,255,0.02)" />
+        <!-- Gradient fill under curve -->
+        <path d="{{ chart_path }} L 1172,332 L 28,332 Z" fill="url(#areaGradient)" />
+        <!-- Main line -->
+        <path d="{{ chart_path }}" fill="none" stroke="url(#lineGradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+        <!-- Axis lines -->
+        <line x1="28" y1="332" x2="1172" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
+        <line x1="28" y1="28" x2="28" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
+      </svg>
+      <div class="chart-labels">
+        <div class="chart-axis">
+          <div class="axis-label axis-y-max">
+            <span class="label-text">High</span>
+            <span class="label-value">₹{{ "{:,.0f}".format(chart_max) if chart_max else "0" }}</span>
+          </div>
+          <div class="axis-label axis-y-min">
+            <span class="label-text">Low</span>
+            <span class="label-value">₹{{ "{:,.0f}".format(chart_min) if chart_min else "0" }}</span>
+          </div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <span class="legend-dot"></span>
+            <span>Equity progression from {{ snapshot.start_date }} to {{ snapshot.end_date or "present" }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel holdings-panel">
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Current allocation</p>
+        <h3>Largest active weights</h3>
+      </div>
+      <div class="value-pill">{{ holdings | length }} names</div>
+    </div>
+    <div class="holdings-list">
+      {% for item in holdings %}
+      <div class="holding-row">
+        <div class="holding-meta">
+          <strong>{{ item.symbol }}</strong>
+          <span>{{ "{:.2f}".format(item.percent) }}%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width: {{ item.percent }}%"></div></div>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endif %}
+{% endblock %}

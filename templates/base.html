@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Nifty Quant Dashboard{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+</head>
+<body>
+  <div class="page-shell">
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Systematic Research</p>
+        <h1>Nifty Quant</h1>
+      </div>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loader-overlay" id="loaderOverlay">
+    <div class="loader-content">
+      <div class="spinner"></div>
+      <p class="loader-text">Running backtest...</p>
+    </div>
+  </div>
+
+  <script>
+    const loaderOverlay = document.getElementById('loaderOverlay');
+    const form = document.querySelector('.control-form');
+    const button = document.querySelector('.primary-btn');
+
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        // Check if the run parameter is set (form is being submitted for backtest)
+        const runInput = form.querySelector('input[name="run"]');
+        if (runInput && runInput.value === '1') {
+          loaderOverlay.classList.add('active');
+          button.disabled = true;
+          button.style.opacity = '0.6';
+          button.style.cursor = 'not-allowed';
+        }
+      });
+    }
+
+    // Hide loader when page fully loads
+    window.addEventListener('load', function() {
+      loaderOverlay.classList.remove('active');
+      if (button) {
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.style.cursor = 'pointer';
+      }
+    });
+  </script>
+</body>
+</html>

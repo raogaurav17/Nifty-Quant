@@ -48,23 +48,14 @@ def fetch_index(start: str, end: str | None) -> pd.Series:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def compute_metrics(prices: pd.Series, initial_capital: float) -> dict:
-    """
-    Compute benchmark metrics using the standardized metrics module.
-    Uses 6.5% risk-free rate for Sharpe ratio (India benchmark standard).
-    """
+    """Compute benchmark metrics with 6.5% risk-free rate."""
     returns       = prices.pct_change().dropna()
     equity_curve  = (1 + returns).cumprod() * initial_capital
-
     total_days    = (prices.index[-1] - prices.index[0]).days
     years         = total_days / 365.25
-
-    # Use the standardized metrics calculator (6.5% risk-free rate)
     perf_metrics = calculate_metrics(returns=returns, equity_curve=equity_curve, risk_free_rate=0.065)
-
     total_return  = (prices.iloc[-1] / prices.iloc[0]) - 1
     cagr          = (1 + total_return) ** (1 / years) - 1
-
-    # Max drawdown
     rolling_max   = equity_curve.cummax()
     drawdowns     = (equity_curve - rolling_max) / rolling_max
     max_drawdown  = drawdowns.min()
@@ -90,10 +81,6 @@ def compute_metrics(prices: pd.Series, initial_capital: float) -> dict:
         "returns"                 : returns,
     }
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Display
-# ──────────────────────────────────────────────────────────────────────────────
 
 def print_report(m: dict, strategy_return: float | None = None) -> None:
     SEP = "─" * 50
@@ -142,10 +129,6 @@ def print_report(m: dict, strategy_return: float | None = None) -> None:
         print(f"  {yr}  {sign}{abs(ret):5.1%}  {bar}")
     print()
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# CLI
-# ──────────────────────────────────────────────────────────────────────────────
 
 def parse_args():
     parser = argparse.ArgumentParser(description="NIFTY 50 benchmark calculator")

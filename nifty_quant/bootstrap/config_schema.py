@@ -10,7 +10,6 @@ class UniverseConfig:
 
 
 # Data
-
 @dataclass(frozen=True)
 class DataConfig:
     provider: str
@@ -26,9 +25,7 @@ class StrategyConfig:
     top_k: int
 
 
-# Portfolio Construction
-
-
+# Portfolio construction
 @dataclass(frozen=True)
 class PortfolioConfig:
     method: str
@@ -38,7 +35,7 @@ class PortfolioConfig:
     target_annual_vol: float
 
 
-# Execution / Costs
+# Execution costs
 @dataclass(frozen=True)
 class ExecutionConfig:
     brokerage_cost: float
@@ -46,7 +43,7 @@ class ExecutionConfig:
 
 
 
-# Backtest
+# Backtest parameters
 @dataclass(frozen=True)
 class BacktestConfig:
     frequency: str
@@ -61,22 +58,11 @@ class MetricsConfig:
     risk_free_rate: float
     annualization_factor: int
 
-
-# -------------------------
-# Runtime
-# -------------------------
-
-
 @dataclass(frozen=True)
 class RuntimeConfig:
     seed: int
     timezone: str
     log_level: str
-
-
-# -------------------------
-# Root App Config
-# -------------------------
 
 
 @dataclass(frozen=True)
