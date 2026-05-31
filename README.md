@@ -1,10 +1,32 @@
 # Nifty-Quant
 
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A systematic momentum backtesting framework for the NSE NIFTY 50 universe, built in Python. Implements a 12-1 momentum strategy with inverse-volatility position sizing, monthly rebalancing, and realistic transaction cost modelling.
 
 ---
 
-## Strategy
+## 🚀 Live Demo
+
+You can view the live dashboard of the backtest results here:
+
+**[https://nifty-quant.onrender.com/](https://nifty-quant.onrender.com/)**
+
+---
+
+## ✨ Features
+
+- **Systematic Momentum Strategy**: Implements the classic 12-1 momentum signal.
+- **Inverse Volatility Sizing**: Positions are sized to balance risk.
+- **Realistic Cost Modelling**: Includes brokerage and slippage costs for more accurate results.
+- **NIFTY 50 Universe**: Focused on India's leading stock index.
+- **Extensible & Configurable**: Built with Hydra for easy configuration changes without altering code.
+- **Web Dashboard**: Flask-based web interface to visualize backtest results.
+
+---
+
+## 📈 Strategy Explained
 
 **Signal — 12-1 Momentum**
 At each rebalance date, rank all NIFTY 50 constituents by their 12-month total return ending 1 month ago (252 trading days lookback, skipping the most recent 21 days to avoid short-term reversal). Select the top 10 stocks.
@@ -22,7 +44,7 @@ Weight the 10 selected stocks proportional to `1 / σ` where σ is each stock's 
 
 ---
 
-## Backtest Results
+## 📊 Backtest Results
 
 | Metric             | Value               |
 | ------------------ | ------------------- |
@@ -34,15 +56,17 @@ Weight the 10 selected stocks proportional to `1 / σ` where σ is each stock's 
 | Observations       | 2,316 trading days  |
 | Rebalances         | 99                  |
 
-> **Note:** Results include brokerage and slippage costs. Survivorship bias is a known limitation — see [Known Issues](#known-issues).
+> **Note:** Results include brokerage and slippage costs.
 
 ---
 
-## Project Structure
+## 🏗️ Project Structure
+
+The project follows a clean architecture pattern, separating domain logic from infrastructure concerns.
 
 ```
 Nifty-Quant/
-├── conf/                          # Hydra config files
+├── conf/                          # Hydra config files for easy tuning
 │   ├── config.yaml                # Root config (assembles all modules)
 │   ├── backtest/monthly.yaml      # Backtest date range and capital
 │   ├── data/yahoo.yaml            # Data provider settings
@@ -53,51 +77,83 @@ Nifty-Quant/
 ├── nifty_quant/                   # Main package
 │   ├── main.py                    # Entry point (Hydra)
 │   ├── bootstrap/config_schema.py # Typed config validation
-│   ├── domain/
-│   │   ├── models.py              # BacktestResult dataclass
-│   │   └── backtest/engine.py     # Core backtesting engine
-│   ├── infrastructure/
-│   │   ├── data/yahoo_price_repository.py   # Yahoo Finance data feed
-│   │   └── execution/india_equities.py      # Cost model
-│   └── interfaces/
-│       ├── execution_model.py     # Abstract execution interface
-│       └── price_repository.py    # Abstract price interface
-├── nifty_ticker/                  # NSE snapshot scraper
-│   └── ticket_extractor.py        # Fetches live NIFTY 50 constituents from NSE
+│   ├── domain/                    # Core business logic (strategy, models)
+│   ├── infrastructure/            # External services (data feeds, brokers)
+│   ├── interfaces/                # Abstract interfaces for infrastructure
+│   └── web/                       # Flask web application
+├── nifty_ticker/                  # Scraper for NIFTY 50 constituents
 └── tests/                         # Unit and integration tests
 ```
 
 ---
 
-## Installation
+## 🛠️ Installation
 
 **Requirements:** Python 3.11+
 
-```bash
-git clone https://github.com/your-username/Nifty-Quant.git
-cd Nifty-Quant
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # macOS/Linux
-pip install -r requirements.txt
-```
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/Nifty-Quant.git
+    cd Nifty-Quant
+    ```
+
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv .venv
+    # Windows
+    .venv\Scripts\activate
+    # macOS/Linux
+    # source .venv/bin/activate
+    ```
+
+3.  **Install dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 ---
 
-## Running the Backtest
+## 🚀 Usage
+
+### Running the Backtest
+
+To run the backtest simulation from your terminal, execute the main module:
 
 ```bash
 python -m nifty_quant.main
 ```
 
-Hydra will load all configs from `conf/` automatically. Output is printed to stdout:
+Hydra will automatically load all configurations from the `conf/` directory. The results will be printed to your console.
 
+### Launching the Web Dashboard
+
+To explore the results visually, run the Flask web application:
+
+```bash
+python -m nifty_quant.web.app
 ```
-Backtest completed
-Start equity: 1,000,000.00
-End equity:   2,592,800.65
-Total return: 159.28%
-Observations: 2316
+
+Navigate to `http://127.0.0.1:5000` in your web browser to see the dashboard.
+
+---
+
+## ⚠️ Known Issues & Limitations
+
+- **Survivorship Bias**: The current backtest uses today's NIFTY 50 constituents. It does not account for historical changes in the index composition, which may inflate returns. A more robust implementation would use point-in-time constituent lists.
+- **Data Source**: The backtest relies on Yahoo Finance, which may have data quality issues.
+
+---
+
+## Disclaimer
+
+This project is for educational and research purposes only. It is not financial advice. Trading and investing involve risk, and you should conduct your own research before making any investment decisions.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
 ```
 
 **Override any config parameter from the command line:**
