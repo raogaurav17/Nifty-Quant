@@ -19,16 +19,16 @@ class BacktestEngine:
         self,
         price_repo: PriceRepository,
         execution_model: ExecutionModel,
-        # --- strategy params (momentum_12_1.yaml) ---
+        # strategy params (momentum_12_1.yaml)
         lookback_days: int = 252,
         skip_recent_days: int = 21,
         top_k: int = 10,
-        # --- portfolio params (inverse_vol.yaml) ---
+        # portfolio params (inverse_vol.yaml)
         vol_lookback_days: int = 60,
         max_weight: float = 0.10,
         cash_buffer: float = 0.05,
         target_annual_vol: float = 0.10,
-        # --- rebalance cadence ---
+        # rebalance cadence
         rebalance_every: int = 21,          # ~1 calendar month in trading days
     ) -> None:
         self.price_repo = price_repo

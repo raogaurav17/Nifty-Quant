@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -99,7 +98,7 @@ def dashboard(request: Request) -> HTMLResponse:
     if should_run:
         try:
             snapshot = build_backtest_snapshot(_query_overrides(request))
-        except Exception as exc:  # pragma: no cover - rendered to the browser
+        except Exception as exc:
             error_message = str(exc)
 
     context = {

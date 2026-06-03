@@ -7,7 +7,7 @@ A systematic momentum backtesting framework for the NSE NIFTY 50 universe, built
 
 ---
 
-## 🚀 Live Demo
+## Live Demo
 
 You can view the live dashboard of the backtest results here:
 
@@ -15,7 +15,7 @@ You can view the live dashboard of the backtest results here:
 
 ---
 
-## ✨ Features
+## Features
 
 - **Systematic Momentum Strategy**: Implements the classic 12-1 momentum signal.
 - **Inverse Volatility Sizing**: Positions are sized to balance risk.
@@ -26,7 +26,7 @@ You can view the live dashboard of the backtest results here:
 
 ---
 
-## 📈 Strategy Explained
+## Strategy Explained
 
 **Signal — 12-1 Momentum**
 At each rebalance date, rank all NIFTY 50 constituents by their 12-month total return ending 1 month ago (252 trading days lookback, skipping the most recent 21 days to avoid short-term reversal). Select the top 10 stocks.
@@ -44,7 +44,7 @@ Weight the 10 selected stocks proportional to `1 / σ` where σ is each stock's 
 
 ---
 
-## 📊 Backtest Results
+## Backtest Results
 
 | Metric             | Value               |
 | ------------------ | ------------------- |
@@ -60,7 +60,7 @@ Weight the 10 selected stocks proportional to `1 / σ` where σ is each stock's 
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 The project follows a clean architecture pattern, separating domain logic from infrastructure concerns.
 
@@ -87,7 +87,7 @@ Nifty-Quant/
 
 ---
 
-## 🛠️ Installation
+## Installation
 
 **Requirements:** Python 3.11+
 
@@ -113,7 +113,7 @@ Nifty-Quant/
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### Running the Backtest
 
@@ -137,7 +137,7 @@ Navigate to `http://127.0.0.1:5000` in your web browser to see the dashboard.
 
 ---
 
-## ⚠️ Known Issues & Limitations
+## Known Issues & Limitations
 
 - **Survivorship Bias**: The current backtest uses today's NIFTY 50 constituents. It does not account for historical changes in the index composition, which may inflate returns. A more robust implementation would use point-in-time constituent lists.
 - **Data Source**: The backtest relies on Yahoo Finance, which may have data quality issues.
@@ -150,7 +150,7 @@ This project is for educational and research purposes only. It is not financial 
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
