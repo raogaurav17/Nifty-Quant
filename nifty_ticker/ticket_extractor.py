@@ -14,7 +14,7 @@ NSE_URL = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
 def fetch_nifty50():
     session = requests.Session(impersonate="chrome120")
 
-    # Seed session cookies exactly as a real browser would
+
     session.get("https://www.nseindia.com", timeout=15)
     time.sleep(2)
     session.get(
@@ -36,7 +36,7 @@ def fetch_nifty50():
 
     df = pd.DataFrame(data["data"])
 
-    # Keep only equity-series rows (drops the index summary row)
+
     df = df[df["series"] == "EQ"].reset_index(drop=True)
 
     symbols = df["symbol"].tolist()

@@ -2,9 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class ExecutionModel(ABC):
-    """
-    Abstract execution and cost model.
-    """
+    """Abstract execution and cost model."""
 
     @abstractmethod
     def apply_costs(
@@ -12,7 +10,5 @@ class ExecutionModel(ABC):
         notional: float,
         turnover: float,
     ) -> float:
-        """
-        Returns total execution cost given traded notional.
-        """
+        """Returns total execution cost given traded notional."""
         raise NotImplementedError

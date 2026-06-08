@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import yaml
+from omegaconf import DictConfig, OmegaConf
 
-from nifty_quant.bootstrap.config_schema import AppConfig
 from nifty_quant.domain.backtest.engine import BacktestEngine
+from nifty_quant.domain.strategies.registry import build_strategy
 from nifty_quant.domain.metrics import PerformanceMetrics, calculate_metrics
 from nifty_quant.domain.models import BacktestResult
 from nifty_quant.infrastructure.data.yahoo_price_repository import YahooPriceRepository
@@ -38,84 +36,21 @@ class BacktestSnapshot:
 def _parse_date(value: str | None) -> date | None:
     if value is None:
         return None
-    return date.fromisoformat(value)
+    return date.fromisoformat(str(value))
 
 
-def _load_yaml(path: Path) -> dict[str, Any]:
-    loaded = yaml.safe_load(path.read_text())
-    if loaded is None:
-        return {}
-    if not isinstance(loaded, dict):
-        raise ValueError(f"Expected a mapping in {path}, got {type(loaded).__name__}")
-    return loaded
+def load_config(overrides: list[str] | None = None) -> DictConfig:
+    """Load and compose the Hydra config programmatically."""
+    from hydra import compose, initialize_config_dir
+    from hydra.core.global_hydra import GlobalHydra
+    from pathlib import Path
 
+    config_dir = str(Path(__file__).resolve().parents[2] / "conf")
 
-def _parse_override_value(value: str) -> Any:
-    normalized = value.strip()
-    if normalized.startswith(("'", '"')) and normalized.endswith(("'", '"')) and len(normalized) >= 2:
-        return normalized[1:-1]
-
-    lowered = normalized.lower()
-    if lowered in {"null", "none", "~"}:
-        return None
-    if lowered == "true":
-        return True
-    if lowered == "false":
-        return False
-
-    numeric_value = normalized.replace("_", "")
-    try:
-        if any(marker in numeric_value for marker in (".", "e", "E")):
-            return float(numeric_value)
-        return int(numeric_value)
-    except ValueError:
-        return normalized
-
-
-def _apply_override(config: dict[str, Any], override: str) -> None:
-    if "=" not in override:
-        raise ValueError(f"Invalid override '{override}'. Expected key=value.")
-
-    key_path, raw_value = override.split("=", 1)
-    if not key_path:
-        raise ValueError(f"Invalid override '{override}'. Expected key=value.")
-
-    target = config
-    keys = key_path.split(".")
-    for key in keys[:-1]:
-        next_value = target.get(key)
-        if next_value is None:
-            next_value = {}
-            target[key] = next_value
-        if not isinstance(next_value, dict):
-            raise ValueError(f"Cannot apply override '{override}' because '{key}' is not a mapping")
-        target = next_value
-
-    target[keys[-1]] = _parse_override_value(raw_value)
-
-
-def load_config(overrides: list[str] | None = None) -> dict[str, Any]:
-    config_root = Path(__file__).resolve().parents[2] / "conf"
-    root_config = _load_yaml(config_root / "config.yaml")
-    defaults = root_config.get("defaults", [])
-
-    composed_config: dict[str, Any] = {}
-    for default_entry in defaults:
-        if default_entry == "_self_":
-            continue
-        if not isinstance(default_entry, dict) or len(default_entry) != 1:
-            raise ValueError(f"Unsupported default entry in config.yaml: {default_entry!r}")
-
-        group_name, config_name = next(iter(default_entry.items()))
-        composed_config[group_name] = _load_yaml(config_root / group_name / f"{config_name}.yaml")
-
-    root_values = {key: value for key, value in root_config.items() if key != "defaults"}
-    composed_config.update(root_values)
-
-    for override in overrides or []:
-        _apply_override(composed_config, override)
-
-    return composed_config
+    GlobalHydra.instance().clear()
+    with initialize_config_dir(config_dir=config_dir, version_base=None):
+        cfg = compose(config_name="config", overrides=overrides or [])
+    return cfg
 
 
 def _build_chart_path(equity_curve: pd.Series) -> tuple[str, float, float]:
@@ -180,16 +115,21 @@ def _build_recent_trades(result: BacktestResult) -> list[dict[str, Any]]:
     ]
 
 
-def build_backtest_snapshot(overrides: list[str] | None = None) -> BacktestSnapshot:
-    config = load_config(overrides)
-    _ = AppConfig(**deepcopy(config))
+def build_backtest_snapshot(
+    cfg: DictConfig | list[str] | None = None,
+) -> BacktestSnapshot:
+    """Run the backtest and return a rich snapshot."""
+    if not isinstance(cfg, DictConfig):
+        cfg = load_config(cfg)
+
+    # Convert to a plain Python dict for uniform access
+    config: dict[str, Any] = OmegaConf.to_container(cfg, resolve=True)  # type: ignore[assignment]
 
     data_cfg = config.get("data", {})
     universe_cfg = config.get("universe", {})
     provider = str(data_cfg.get("provider", ""))
     symbols = universe_cfg.get("symbols", [])
     strategy_cfg = config.get("strategy", {})
-    portfolio_cfg = config.get("portfolio", {})
 
     if provider != "yahoo":
         raise ValueError(f"Unsupported data provider: {provider}")
@@ -202,24 +142,22 @@ def build_backtest_snapshot(overrides: list[str] | None = None) -> BacktestSnaps
         slippage_rate=float(execution_cfg["slippage"]),
     )
 
+    strategy = build_strategy(strategy_cfg)
+
+    backtest_cfg = config.get("backtest", {})
+    rebalance_every = int(backtest_cfg.get("rebalance_every", 21))
+
     engine = BacktestEngine(
         price_repo=YahooPriceRepository(),
         execution_model=execution_model,
-        lookback_days=int(strategy_cfg.get("lookback_days", 252)),
-        skip_recent_days=int(strategy_cfg.get("skip_recent_days", 21)),
-        top_k=int(strategy_cfg.get("top_k", 10)),
-        vol_lookback_days=int(portfolio_cfg.get("vol_lookback_days", 60)),
-        max_weight=float(portfolio_cfg.get("max_weight", 0.10)),
-        cash_buffer=float(portfolio_cfg.get("cash_buffer", 0.05)),
-        target_annual_vol=float(portfolio_cfg.get("target_annual_vol", 0.10)),
+        strategy=strategy,
+        rebalance_every=rebalance_every,
     )
 
-    backtest_cfg = config.get("backtest", {})
     start_date = _parse_date(backtest_cfg["start_date"])
     if start_date is None:
         raise ValueError("backtest.start_date must be set")
 
-    # Validate start_date is not in the future
     today = date.today()
     if start_date > today:
         raise ValueError(f"Start date ({start_date}) cannot be in the future. Today is {today}.")

@@ -1,0 +1,15 @@
+name: arima
+
+method: ols
+arima_p: 2
+arima_d: 0
+arima_q: 0
+fit_window: 60
+top_k: 10
+
+vol_lookback_days: 60
+max_weight: 0.10
+cash_buffer: 0.05
+target_annual_vol: 0.10
+
+max_workers: 4

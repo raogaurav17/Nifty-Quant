@@ -491,3 +491,112 @@ input:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Strategy tabs ── */
+.strategy-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.strat-tab {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(25, 25, 25, 0.6);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+}
+
+.strat-tab:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--text);
+}
+
+.strat-tab.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: var(--text);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 0 12px rgba(255,255,255,0.04);
+}
+
+/* ── Field sections ── */
+.field-section {
+  margin-bottom: 14px;
+}
+
+.field-section-label {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ── Select input ── */
+.select-input {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(25, 25, 25, 0.9);
+  color: var(--text);
+  padding: 12px 14px;
+  font: inherit;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23808080' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+
+.select-input:focus {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+label.span-2 {
+  grid-column: 1 / -1;
+}
+
+/* ── Strategy badge in results panel ── */
+.strategy-badge-card {
+  margin-bottom: 14px;
+}
+
+.strategy-name-display {
+  margin: 6px 0 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-transform: capitalize;
+}
+
+/* ── Strategy info (idle state) ── */
+.strategies-info-card {
+  margin-top: 14px;
+}
+
+.strat-info-row {
+  margin-top: 10px;
+}
+
+.strat-pill {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-transform: capitalize;
+}

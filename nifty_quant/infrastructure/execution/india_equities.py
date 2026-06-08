@@ -2,12 +2,7 @@ from nifty_quant.interfaces.execution_model import ExecutionModel
 
 
 class IndiaEquitiesExecutionModel(ExecutionModel):
-    """
-    Simple and realistic execution cost model for Indian equities.
-
-    Costs are applied as:
-        cost = notional * turnover * (brokerage + slippage)
-    """
+    """Execution cost model for Indian equities."""
 
     def __init__(
         self,
@@ -22,19 +17,7 @@ class IndiaEquitiesExecutionModel(ExecutionModel):
         notional: float,
         turnover: float,
     ) -> float:
-        """
-        Parameters
-        ----------
-        notional : float
-            Total portfolio value
-        turnover : float
-            Sum of absolute changes in weights
-
-        Returns
-        -------
-        float
-            Total execution cost in currency units
-        """
+        
         if turnover <= 0.0:
             return 0.0
 

@@ -1,6 +1,4 @@
-"""
-Performance metrics for backtest results.
-"""
+"""Performance metrics for backtest results."""
 from dataclasses import dataclass
 from typing import Optional
 
@@ -26,23 +24,7 @@ def calculate_metrics(
     equity_curve: pd.Series,
     risk_free_rate: float = 0.0,
 ) -> PerformanceMetrics:
-    """
-    Calculate comprehensive performance metrics from backtest results.
-
-    Parameters
-    ----------
-    returns : pd.Series
-        Net daily returns (with costs already deducted)
-    equity_curve : pd.Series
-        Daily equity curve (portfolio value over time)
-    risk_free_rate : float
-        Annual risk-free rate (default 0.0)
-
-    Returns
-    -------
-    PerformanceMetrics
-        Dataclass containing all performance metrics
-    """
+    """Calculate comprehensive performance metrics from backtest results."""
     if returns.empty or equity_curve.empty:
         raise ValueError("returns and equity_curve cannot be empty")
 

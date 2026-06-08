@@ -14,9 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class YahooPriceRepository(PriceRepository):
-    """
-    Price repository backed by Yahoo Finance.
-    """
+    """Price repository backed by Yahoo Finance."""
 
     def get_prices(
         self,
@@ -30,7 +28,7 @@ class YahooPriceRepository(PriceRepository):
         raw = self._download_with_retry(symbols=symbols, start_date=start_date, end_date=end_date)
         symbol_to_df = self._extract_symbol_data(raw=raw, symbols=symbols)
 
-        # Batch requests can intermittently miss individual symbols; retry them one-by-one.
+        # Retry missing symbols individually
         missing_symbols = [symbol for symbol in symbols if symbol not in symbol_to_df]
         for symbol in missing_symbols:
             single_raw = self._download_with_retry(
@@ -120,7 +118,7 @@ class YahooPriceRepository(PriceRepository):
                 if not out.empty:
                     symbol_to_df[symbol] = out
         else:
-            # yfinance returns single-level columns when only one symbol is requested.
+            # Handle single-level columns for single symbol request
             adj_close_col = "Adj Close" if "Adj Close" in raw.columns else "Close"
             symbol = symbols[0]
             out = pd.DataFrame(

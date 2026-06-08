@@ -13,6 +13,7 @@ dependencies = [
     "numpy>=2.4.4",
     "pandas>=3.0.2",
     "pytest>=9.0.2",
+    "statsmodels>=0.14.0",
     "uvicorn>=0.30.0",
     "yfinance>=1.2.0",
 ]

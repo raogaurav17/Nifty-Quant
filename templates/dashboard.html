@@ -6,60 +6,118 @@
 <section class="hero-grid">
   <article class="panel hero-panel">
     <div class="hero-copy">
-      <p class="eyebrow">Momentum backtest</p>
-      <h2>12-1 strategy simulator</h2>
+      <p class="eyebrow">Systematic Research</p>
+      <h2>Strategy simulator</h2>
       <p class="hero-text">
-        Adjust parameters and run the backtest to see portfolio performance, allocation weights, and key metrics.
+        Select a strategy, tune parameters, and run the backtest to see portfolio performance, allocation weights, and key risk metrics.
       </p>
       <div class="hero-pills">
         <span>{{ base_config.universe.name }}</span>
         <span>{{ base_config.universe.symbols | length }} symbols</span>
+        <span>NIFTY 50</span>
       </div>
     </div>
-    <form class="control-form" method="get" action="/">
+
+    <form class="control-form" method="get" action="/" id="backtestForm">
       <input type="hidden" name="run" value="1">
-      <div class="field-grid">
-        <label>
-          <span>Start date</span>
-          <input type="date" name="start_date" value="{{ form_values.start_date }}">
-        </label>
-        <label>
-          <span>End date</span>
-          <input type="date" name="end_date" value="{{ form_values.end_date }}">
-        </label>
-        <label>
-          <span>Initial capital</span>
-          <input type="number" step="1000" name="initial_capital" value="{{ form_values.initial_capital }}">
-        </label>
-        <label>
-          <span>Top K</span>
-          <input type="number" step="1" min="1" name="top_k" value="{{ form_values.top_k }}">
-        </label>
-        <label>
-          <span>Lookback days</span>
-          <input type="number" step="1" min="1" name="lookback_days" value="{{ form_values.lookback_days }}">
-        </label>
-        <label>
-          <span>Skip recent days</span>
-          <input type="number" step="1" min="0" name="skip_recent_days" value="{{ form_values.skip_recent_days }}">
-        </label>
-        <label>
-          <span>Vol lookback</span>
-          <input type="number" step="1" min="1" name="vol_lookback_days" value="{{ form_values.vol_lookback_days }}">
-        </label>
-        <label>
-          <span>Max weight</span>
-          <input type="number" step="0.01" min="0" max="1" name="max_weight" value="{{ form_values.max_weight }}">
-        </label>
-        <label>
-          <span>Cash buffer</span>
-          <input type="number" step="0.01" min="0" max="1" name="cash_buffer" value="{{ form_values.cash_buffer }}">
-        </label>
-        <label>
-          <span>Target vol</span>
-          <input type="number" step="0.01" min="0" max="1" name="target_annual_vol" value="{{ form_values.target_annual_vol }}">
-        </label>
+
+
+      <div class="strategy-tabs" role="tablist" aria-label="Strategy">
+        {% for strat in strategies %}
+        <button
+          type="button"
+          role="tab"
+          class="strat-tab {% if form_values.strategy == strat %}active{% endif %}"
+          data-strategy="{{ strat }}"
+          aria-selected="{{ 'true' if form_values.strategy == strat else 'false' }}"
+        >{{ strat | replace("_", " ") | title }}</button>
+        {% endfor %}
       </div>
+      <input type="hidden" name="strategy" id="strategyInput" value="{{ form_values.strategy }}">
+
+
+      <div class="field-section">
+        <p class="field-section-label">Backtest</p>
+        <div class="field-grid">
+          <label>
+            <span>Start date</span>
+            <input type="date" name="start_date" value="{{ form_values.start_date }}">
+          </label>
+          <label>
+            <span>End date</span>
+            <input type="date" name="end_date" value="{{ form_values.end_date }}">
+          </label>
+          <label>
+            <span>Initial capital (₹)</span>
+            <input type="number" step="1000" name="initial_capital" value="{{ form_values.initial_capital }}">
+          </label>
+          <label>
+            <span>Top K stocks</span>
+            <input type="number" step="1" min="1" max="50" name="top_k" value="{{ form_values.top_k }}">
+          </label>
+        </div>
+      </div>
+
+
+      <div class="field-section strat-fields" id="fields-momentum_12_1" style="{{ '' if form_values.strategy == 'momentum_12_1' else 'display:none' }}">
+        <p class="field-section-label">Signal — Momentum 12-1</p>
+        <div class="field-grid">
+          <label>
+            <span>Lookback days</span>
+            <input type="number" step="1" min="20" name="lookback_days" value="{{ form_values.lookback_days }}">
+          </label>
+          <label>
+            <span>Skip recent days</span>
+            <input type="number" step="1" min="0" name="skip_recent_days" value="{{ form_values.skip_recent_days }}">
+          </label>
+        </div>
+      </div>
+
+
+      <div class="field-section strat-fields" id="fields-arima" style="{{ '' if form_values.strategy == 'arima' else 'display:none' }}">
+        <p class="field-section-label">Signal — AR Model</p>
+        <div class="field-grid">
+          <label>
+            <span>AR order (p)</span>
+            <input type="number" step="1" min="1" max="10" name="arima_p" value="{{ form_values.arima_p }}">
+          </label>
+          <label>
+            <span>Fit window (days)</span>
+            <input type="number" step="5" min="20" name="fit_window" value="{{ form_values.fit_window }}">
+          </label>
+          <label class="span-2">
+            <span>Fitting method</span>
+            <select name="arima_method" class="select-input">
+              <option value="ols" {% if form_values.arima_method == 'ols' %}selected{% endif %}>OLS — fast (numpy, seconds)</option>
+              <option value="mle" {% if form_values.arima_method == 'mle' %}selected{% endif %}>MLE — statsmodels ARIMA (slow, minutes)</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+
+      <div class="field-section">
+        <p class="field-section-label">Sizing</p>
+        <div class="field-grid">
+          <label>
+            <span>Vol lookback</span>
+            <input type="number" step="1" min="10" name="vol_lookback_days" value="{{ form_values.vol_lookback_days }}">
+          </label>
+          <label>
+            <span>Max weight</span>
+            <input type="number" step="0.01" min="0.01" max="1" name="max_weight" value="{{ form_values.max_weight }}">
+          </label>
+          <label>
+            <span>Cash buffer</span>
+            <input type="number" step="0.01" min="0" max="0.5" name="cash_buffer" value="{{ form_values.cash_buffer }}">
+          </label>
+          <label>
+            <span>Target vol</span>
+            <input type="number" step="0.01" min="0.01" max="1" name="target_annual_vol" value="{{ form_values.target_annual_vol }}">
+          </label>
+        </div>
+      </div>
+
       <button class="primary-btn" type="submit">Run backtest</button>
     </form>
   </article>
@@ -71,7 +129,12 @@
       <p>{{ error_message }}</p>
     </div>
     {% endif %}
+
     {% if snapshot %}
+    <div class="status-card strategy-badge-card">
+      <p class="eyebrow">Strategy</p>
+      <p class="strategy-name-display">{{ snapshot.config.strategy.name | replace("_", " ") | title }}</p>
+    </div>
     <div class="status-card">
       <p class="eyebrow">Key metrics</p>
       <div class="metric-rail">
@@ -86,7 +149,15 @@
     {% else %}
     <div class="status-card">
       <p class="eyebrow">Ready to run</p>
-      <p>Configure parameters and click Run backtest.</p>
+      <p>Select a strategy, configure parameters, and click <strong>Run backtest</strong>.</p>
+    </div>
+    <div class="status-card strategies-info-card">
+      <p class="eyebrow">Available strategies</p>
+      {% for strat in strategies %}
+      <div class="strat-info-row">
+        <span class="strat-pill">{{ strat | replace("_", " ") | title }}</span>
+      </div>
+      {% endfor %}
     </div>
     {% endif %}
   </aside>
@@ -117,15 +188,10 @@
             <path d="M 120 0 L 0 0 0 60" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
           </pattern>
         </defs>
-        <!-- Grid background -->
         <rect x="28" y="28" width="1144" height="304" fill="url(#gridPattern)" />
-        <!-- Chart area background -->
         <path d="M 28,332 L 1172,332 L 1172,28 L 28,28 Z" fill="rgba(255,255,255,0.02)" />
-        <!-- Gradient fill under curve -->
         <path d="{{ chart_path }} L 1172,332 L 28,332 Z" fill="url(#areaGradient)" />
-        <!-- Main line -->
         <path d="{{ chart_path }}" fill="none" stroke="url(#lineGradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-        <!-- Axis lines -->
         <line x1="28" y1="332" x2="1172" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
         <line x1="28" y1="28" x2="28" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
       </svg>
@@ -143,7 +209,7 @@
         <div class="chart-legend">
           <div class="legend-item">
             <span class="legend-dot"></span>
-            <span>Equity progression from {{ snapshot.start_date }} to {{ snapshot.end_date or "present" }}</span>
+            <span>{{ snapshot.start_date }} → {{ snapshot.end_date or "present" }}</span>
           </div>
         </div>
       </div>
@@ -172,4 +238,41 @@
   </article>
 </section>
 {% endif %}
+
+<script>
+
+  const tabs = document.querySelectorAll('.strat-tab');
+  const stratInput = document.getElementById('strategyInput');
+  const allFields = document.querySelectorAll('.strat-fields');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const strat = tab.dataset.strategy;
+
+
+      tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+
+
+      stratInput.value = strat;
+
+
+      allFields.forEach(f => {
+        f.style.display = f.id === `fields-${strat}` ? '' : 'none';
+      });
+    });
+  });
+
+
+  document.getElementById('backtestForm').addEventListener('submit', () => {
+    allFields.forEach(section => {
+      if (section.style.display === 'none') {
+        section.querySelectorAll('input, select').forEach(el => {
+          el.disabled = true;
+        });
+      }
+    });
+  });
+</script>
 {% endblock %}

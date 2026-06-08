@@ -6,9 +6,7 @@ import pandas as pd
 
 
 class PriceRepository(ABC):
-    """
-    Abstract interface for price data access.
-    """
+    """Abstract interface for price data access."""
 
     @abstractmethod
     def get_prices(
@@ -17,11 +15,5 @@ class PriceRepository(ABC):
         start_date: date,
         end_date: date | None = None,
     ) -> Dict[str, pd.DataFrame]:
-        """
-        Returns a dict:
-        {
-            "RELIANCE.NS": DataFrame(index=date, columns=[adj_close, volume]),
-            ...
-        }
-        """
+        """Returns dict of DataFrames keyed by symbol."""
         raise NotImplementedError

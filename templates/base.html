@@ -24,7 +24,7 @@
     </main>
   </div>
 
-  <!-- Loading Overlay -->
+
   <div class="loader-overlay" id="loaderOverlay">
     <div class="loader-content">
       <div class="spinner"></div>
@@ -39,7 +39,7 @@
 
     if (form) {
       form.addEventListener('submit', function(e) {
-        // Check if the run parameter is set (form is being submitted for backtest)
+
         const runInput = form.querySelector('input[name="run"]');
         if (runInput && runInput.value === '1') {
           loaderOverlay.classList.add('active');
@@ -50,7 +50,7 @@
       });
     }
 
-    // Hide loader when page fully loads
+
     window.addEventListener('load', function() {
       loaderOverlay.classList.remove('active');
       if (button) {

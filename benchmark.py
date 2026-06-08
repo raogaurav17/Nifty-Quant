@@ -1,14 +1,4 @@
-"""
-benchmark.py
-------------
-Computes NIFTY 50 buy-and-hold benchmark metrics over the same period
-as the Nifty-Quant backtest, for direct strategy comparison.
-
-Usage:
-    python benchmark.py
-    python benchmark.py --start 2018-01-01 --end 2026-03-14
-    python benchmark.py --start 2020-01-01 --capital 500000
-"""
+"""Computes NIFTY 50 benchmark metrics."""
 
 import argparse
 from datetime import date, datetime
@@ -19,20 +9,18 @@ import yfinance as yf
 
 from nifty_quant.domain.metrics import calculate_metrics
 
-NIFTY_TICKER   = "^NSEI"     # NIFTY 50 price index (Yahoo Finance)
-TRADING_DAYS   = 252         # annualisation factor
+NIFTY_TICKER   = "^NSEI"
+TRADING_DAYS   = 252
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Data
-# ──────────────────────────────────────────────────────────────────────────────
+
 
 def fetch_index(start: str, end: str | None) -> pd.Series:
     raw = yf.download(
         NIFTY_TICKER,
         start=start,
         end=end,
-        auto_adjust=True,      # adjusted close; includes dividend effect
+        auto_adjust=True,
         progress=False,
     )
     if raw.empty:
@@ -43,9 +31,7 @@ def fetch_index(start: str, end: str | None) -> pd.Series:
     return close.dropna()
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Metrics
-# ──────────────────────────────────────────────────────────────────────────────
+
 
 def compute_metrics(prices: pd.Series, initial_capital: float) -> dict:
     """Compute benchmark metrics with 6.5% risk-free rate."""
@@ -116,7 +102,7 @@ def print_report(m: dict, strategy_return: float | None = None) -> None:
 
     print(SEP)
 
-    # Worst years
+
     annual = (
         m["returns"]
         .groupby(m["returns"].index.year)
