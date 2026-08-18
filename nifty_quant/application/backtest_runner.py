@@ -31,6 +31,7 @@ class BacktestSnapshot:
     end_date: date | None
     initial_capital: float
     symbols: list[str]
+    strategy: Any = None
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -104,7 +105,12 @@ def _build_recent_trades(result: BacktestResult) -> list[dict[str, Any]]:
     if result.trades.empty:
         return []
 
-    trades = result.trades.tail(8).reset_index()
+    # Filter for actual rebalance events (turnover > 0)
+    rebalance_trades = result.trades[result.trades["turnover"] > 0.0]
+    if rebalance_trades.empty:
+        rebalance_trades = result.trades
+
+    trades = rebalance_trades.tail(8).reset_index()
     date_column = trades.columns[0]
     return [
         {
@@ -113,6 +119,7 @@ def _build_recent_trades(result: BacktestResult) -> list[dict[str, Any]]:
         }
         for _, row in trades.iterrows()
     ]
+
 
 
 def build_backtest_snapshot(
@@ -200,4 +207,5 @@ def build_backtest_snapshot(
         end_date=end_date,
         initial_capital=initial_capital,
         symbols=list(symbols),
+        strategy=strategy,
     )

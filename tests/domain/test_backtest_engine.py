@@ -127,3 +127,32 @@ def test_execution_costs_are_scaled_to_returns_space(simple_price_data):
 
     # Net returns should remain in realistic return-space (far above -100%).
     assert (result.returns > -1.0).all()
+
+
+def test_build_recent_trades_filters_zero_turnover():
+    from nifty_quant.application.backtest_runner import _build_recent_trades
+    from nifty_quant.domain.models import BacktestResult
+
+    dates = pd.date_range("2026-01-01", periods=10, freq="D")
+    trades = pd.DataFrame({"turnover": [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, index=dates)
+    result = BacktestResult(
+        equity_curve=pd.Series([100.0] * 10, index=dates),
+        returns=pd.Series([0.0] * 10, index=dates),
+        weights={},
+        trades=trades,
+    )
+    recent = _build_recent_trades(result)
+    assert len(recent) == 1
+    assert recent[0]["turnover"] == 0.5
+
+
+def test_weight_cap_preserves_inverse_vol_differentiation():
+    from nifty_quant.domain.strategies.arima import ARIMAStrategy
+
+    strat = ARIMAStrategy(top_k=10, max_weight=0.20)
+    raw = pd.Series([0.25, 0.15, 0.10, 0.08, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07])
+    capped = strat._apply_weight_cap(raw)
+
+    assert capped.iloc[0] == 0.20
+    assert len(set(capped)) > 1  # Weights are not all flattened to the same equal value
+

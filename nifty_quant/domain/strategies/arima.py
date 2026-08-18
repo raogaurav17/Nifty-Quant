@@ -94,6 +94,9 @@ def _mle_forecast_one(
 class ARIMAStrategy(Strategy):
     """AR / ARIMA signal strategy with inverse-vol position sizing."""
 
+    signal_label: str = "AR FORECAST"
+    rank_note: str = "Ranked by AR 1-step return forecast -- the actual selection signal."
+
     def __init__(
         self,
         method: str = "ols",
@@ -103,7 +106,7 @@ class ARIMAStrategy(Strategy):
         fit_window: int = 60,
         top_k: int = 10,
         vol_lookback_days: int = 60,
-        max_weight: float = 0.10,
+        max_weight: float = 0.20,
         cash_buffer: float = 0.05,
         target_annual_vol: float = 0.10,
         max_workers: int = 4,
@@ -123,7 +126,19 @@ class ARIMAStrategy(Strategy):
         self.target_annual_vol = target_annual_vol
         self.max_workers = max_workers
 
-
+    def compute_signals(
+        self,
+        prices: pd.DataFrame,
+        daily_returns: pd.DataFrame,
+        as_of: pd.Timestamp,
+    ) -> dict[str, float]:
+        log_returns = np.log1p(daily_returns.loc[:as_of].tail(self.fit_window))
+        if self.method == "ols":
+            forecasts_arr = self._ols_forecasts(log_returns)
+            symbols = log_returns.columns.tolist()
+            return {sym: float(fc) for sym, fc in zip(symbols, forecasts_arr)}
+        else:
+            return self._mle_forecasts(log_returns)
 
     @property
     def min_history_days(self) -> int:
@@ -225,12 +240,19 @@ class ARIMAStrategy(Strategy):
 
     def _apply_weight_cap(self, weights: pd.Series) -> pd.Series:
         w = weights.copy()
+        n = len(w)
+        if n <= 1:
+            return w
+
+        # Prevent degenerate equal-weighting when max_weight <= 1/N
+        effective_cap = max(self.max_weight, 1.5 / n) if self.max_weight <= (1.0 / n) else self.max_weight
+
         for _ in range(100):
-            over, under = w > self.max_weight, ~(w > self.max_weight)
+            over, under = w > effective_cap, ~(w > effective_cap)
             if not over.any():
                 break
-            excess = (w[over] - self.max_weight).sum()
-            w[over] = self.max_weight
+            excess = (w[over] - effective_cap).sum()
+            w[over] = effective_cap
             if under.any() and w[under].sum() > 0:
                 w[under] += excess * (w[under] / w[under].sum())
             else:

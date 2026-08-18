@@ -16,13 +16,16 @@ _DAYS_PER_YEAR = 252
 class Momentum12_1Strategy(Strategy):
     """Cross-sectional 12-1 momentum with inverse-vol position sizing."""
 
+    signal_label: str = "MOM SCORE"
+    rank_note: str = "Ranked by 12-1 momentum score -- the actual selection signal."
+
     def __init__(
         self,
         lookback_days: int = 252,
         skip_recent_days: int = 21,
         top_k: int = 10,
         vol_lookback_days: int = 60,
-        max_weight: float = 0.10,
+        max_weight: float = 0.20,
         cash_buffer: float = 0.05,
         target_annual_vol: float = 0.10,
     ) -> None:
@@ -34,7 +37,24 @@ class Momentum12_1Strategy(Strategy):
         self.cash_buffer = cash_buffer
         self.target_annual_vol = target_annual_vol
 
+    def compute_signals(
+        self,
+        prices: pd.DataFrame,
+        daily_returns: pd.DataFrame,
+        as_of: pd.Timestamp,
+    ) -> dict[str, float]:
+        price_history = prices.loc[:as_of]
+        end_idx = len(price_history) - 1 - self.skip_recent_days
+        start_idx = end_idx - self.lookback_days
 
+        if start_idx < 0:
+            return {}
+
+        p_end = price_history.iloc[end_idx]
+        p_start = price_history.iloc[start_idx]
+
+        momentum_scores = (p_end / p_start) - 1.0
+        return momentum_scores.dropna().to_dict()
 
     @property
     def min_history_days(self) -> int:
@@ -110,13 +130,20 @@ class Momentum12_1Strategy(Strategy):
     def _apply_weight_cap(self, weights: pd.Series) -> pd.Series:
         """Iteratively redistribute excess weight from capped positions."""
         w = weights.copy()
+        n = len(w)
+        if n <= 1:
+            return w
+
+        # Prevent degenerate equal-weighting when max_weight <= 1/N
+        effective_cap = max(self.max_weight, 1.5 / n) if self.max_weight <= (1.0 / n) else self.max_weight
+
         for _ in range(100):
-            over = w > self.max_weight
+            over = w > effective_cap
             under = ~over
             if not over.any():
                 break
-            excess = (w[over] - self.max_weight).sum()
-            w[over] = self.max_weight
+            excess = (w[over] - effective_cap).sum()
+            w[over] = effective_cap
             if under.any() and w[under].sum() > 0:
                 w[under] += excess * (w[under] / w[under].sum())
             else:

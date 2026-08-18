@@ -7,19 +7,13 @@ A systematic, **multi-strategy** backtesting framework for the NSE NIFTY 50 univ
 
 ---
 
-## Live Demo
-
-**[https://nifty-quant.onrender.com/](https://nifty-quant.onrender.com/)**
-
----
-
 ## Features
 
 - **Strategy Plugin System** — each strategy lives in its own file; swap with a single CLI flag.
 - **Async Compute & Job Queue** — background thread execution (`JobManager`) decoupled from web request loops.
 - **Real-Time Progress Streaming** — WebSockets (`/ws/backtest/{job_id}`) and REST API (`/api/backtest/...`) stream live backtest progress bars & status updates.
 - **Momentum 12-1** — classic cross-sectional momentum with inverse-vol sizing.
-- **AR(p) / ARIMA Signal** — vectorised autoregressive return forecast (batched numpy OLS, ~1000× faster than MLE).
+- **AR(p) / ARIMA Signal** — vectorised autoregressive return forecast (batched numpy OLS, ~20,000× faster than MLE).
 - **Inverse Volatility Sizing** — positions balanced by 60-day rolling σ, capped at 10% per stock.
 - **Realistic Cost Modelling** — brokerage + slippage applied at every rebalance.
 - **NIFTY 50 Universe** — India's 50 largest listed companies.
@@ -46,25 +40,27 @@ A systematic, **multi-strategy** backtesting framework for the NSE NIFTY 50 univ
 
 ---
 
-## Strategies
+## Model Fitting Micro-Benchmark
 
-### `momentum_12_1` (default)
+Comparing AR(2) model estimation speed across 50 NIFTY constituent stocks (60 trading days matrix per step):
 
-Ranks all NIFTY 50 stocks by their 12-month total return, skipping the most-recent month to avoid short-term reversal. Selects top-10 and weights inversely to realised volatility.
+| Model Fitting Engine | Vectorization / Concurrency | Avg Time / Step (50 stocks) | Avg Time / Stock | Speedup |
+|---|---|---|---|---|
+| **Batched OLS** | SIMD vectorised `numpy.einsum` | **0.184 ms** (0.000184 s) | **0.0037 ms** | **20,726.0× FASTER** |
+| **Parallel MLE** | `statsmodels.tsa.arima` (4 Threads) | 3,823.92 ms (3.8239 s) | 76.48 ms | 1.0× (baseline) |
+| **Sequential MLE** | `statsmodels.tsa.arima` (Single Thread) | 3,608.14 ms (3.6081 s) | 72.16 ms | 1.06× |
 
-```yaml
-# conf/strategy/momentum_12_1.yaml
-name: momentum_12_1
-lookback_days: 252      # 12-month return window
-skip_recent_days: 21    # skip last month (reversal avoidance)
-top_k: 10
-vol_lookback_days: 60
-max_weight: 0.10
-cash_buffer: 0.05
-target_annual_vol: 0.10
+Run the micro-benchmark locally:
+
+```bash
+uv run python benchmark_fit_time.py
 ```
 
-### `arima`
+---
+
+## Strategies
+
+### `arima` (default)
 
 Fits an AR(p) model on each stock's log-return history, takes a one-step-ahead forecast, and selects the top-k stocks with the highest **positive** forecast.
 
@@ -72,8 +68,8 @@ Two fitting methods:
 
 | `method` | Engine | Speed | Notes |
 |---|---|---|---|
-| `ols` (default) | Batched numpy einsum + solve | < 5 ms / rebalance | Pure AR(p); no MA terms |
-| `mle` | statsmodels ARIMA(p,d,q) | ~1–3 min / rebalance | Full ARIMA with MA terms |
+| `ols` (default) | Batched numpy einsum + solve | ~0.18 ms / step (~20,000× faster) | Pure AR(p); no MA terms |
+| `mle` | statsmodels ARIMA(p,d,q) | ~3.8 s / step | Full ARIMA with MA terms |
 
 ```yaml
 # conf/strategy/arima.yaml
@@ -85,7 +81,23 @@ arima_q: 0         # MA order (mle only)
 fit_window: 60     # trading days of history fed to model
 top_k: 10
 vol_lookback_days: 60
-max_weight: 0.10
+max_weight: 0.20
+cash_buffer: 0.05
+target_annual_vol: 0.10
+```
+
+### `momentum_12_1`
+
+Ranks all NIFTY 50 stocks by their 12-month total return, skipping the most-recent month to avoid short-term reversal. Selects top-10 and weights inversely to realised volatility.
+
+```yaml
+# conf/strategy/momentum_12_1.yaml
+name: momentum_12_1
+lookback_days: 252      # 12-month return window
+skip_recent_days: 21    # skip last month (reversal avoidance)
+top_k: 10
+vol_lookback_days: 60
+max_weight: 0.20
 cash_buffer: 0.05
 target_annual_vol: 0.10
 ```
@@ -105,23 +117,23 @@ uv sync
 ### Run a backtest
 
 ```bash
-# Default strategy (momentum 12-1)
-uv run python -m nifty_quant.main
+# Default strategy (ARIMA)
+uv run python main.py
 
-# Switch to ARIMA
-uv run python -m nifty_quant.main strategy=arima
+# Switch to Momentum 12-1
+uv run python main.py strategy=momentum_12_1
 
 # ARIMA with custom params
-uv run python -m nifty_quant.main strategy=arima strategy.arima_p=3 strategy.top_k=5
+uv run python main.py strategy=arima strategy.arima_p=3 strategy.top_k=5
 
 # Override dates and capital (any strategy)
-uv run python -m nifty_quant.main backtest.start_date=2020-01-01 backtest.initial_capital=500000
+uv run python main.py backtest.start_date=2020-01-01 backtest.initial_capital=500000
 ```
 
 ### Launch the web dashboard
 
 ```bash
-uvicorn nifty_quant.web.app:app --reload
+uv run uvicorn nifty_quant.web.app:app --reload
 ```
 
 Navigate to `http://127.0.0.1:8000`.
@@ -139,8 +151,8 @@ Nifty-Quant/
 │   ├── execution/india_equities.yaml  # Brokerage + slippage
 │   ├── portfolio/inverse_vol.yaml     # Sizing parameters
 │   ├── strategy/
-│   │   ├── momentum_12_1.yaml         # Momentum strategy config
-│   │   └── arima.yaml                 # AR/ARIMA strategy config
+│   │   ├── arima.yaml                 # AR/ARIMA strategy config
+│   │   └── momentum_12_1.yaml         # Momentum strategy config
 │   └── universe/nifty50.yaml          # NIFTY 50 symbol list
 ├── nifty_quant/
 │   ├── main.py                        # CLI entry point
@@ -152,9 +164,9 @@ Nifty-Quant/
 │   │   ├── backtest/engine.py         # Strategy-agnostic engine with progress callbacks
 │   │   ├── strategies/
 │   │   │   ├── base.py                # Strategy ABC
-│   │   │   ├── momentum_12_1.py       # Momentum 12-1 implementation
 │   │   │   ├── arima.py               # AR/ARIMA implementation
-│   │   │   └── registry.py            # Factory: name → Strategy instance
+│   │   │   ├── momentum_12_1.py       # Momentum 12-1 implementation
+│   │   │   └── registry.py            # Factory decorator: name → Strategy instance
 │   │   ├── metrics.py                 # Performance metrics
 │   │   └── models.py                  # BacktestResult dataclass
 │   ├── infrastructure/
@@ -170,35 +182,36 @@ Nifty-Quant/
 
 ## Adding a New Strategy
 
-1. Create `nifty_quant/domain/strategies/my_strategy.py` implementing the `Strategy` ABC:
+1. Create `nifty_quant/domain/strategies/my_strategy.py` implementing the `Strategy` ABC and decorating with `@register`:
 
 ```python
 from nifty_quant.domain.strategies.base import Strategy
+from nifty_quant.domain.strategies.registry import register
 
+@register("my_strategy")
 class MyStrategy(Strategy):
+    signal_label: str = "MY SIGNAL"
+    rank_note: str = "Ranked by custom signal score."
+
     @property
     def min_history_days(self) -> int: ...
 
     def select_and_weight(self, prices, daily_returns, as_of) -> pd.Series: ...
+
+    def compute_signals(self, prices, daily_returns, as_of) -> dict[str, float]: ...
 ```
 
-2. Register it in `registry.py`:
-
-```python
-_REGISTRY.setdefault("my_strategy", MyStrategy)
-```
-
-3. Add `conf/strategy/my_strategy.yaml`:
+2. Add `conf/strategy/my_strategy.yaml`:
 
 ```yaml
 name: my_strategy
 # ... your params
 ```
 
-4. Run:
+3. Run:
 
 ```bash
-uv run python -m nifty_quant.main strategy=my_strategy
+uv run python main.py strategy=my_strategy
 ```
 
 ---
@@ -209,7 +222,7 @@ uv run python -m nifty_quant.main strategy=my_strategy
 
 ```yaml
 defaults:
-  - strategy: momentum_12_1   # ← change to: arima
+  - strategy: arima   # ← change to: momentum_12_1
   - portfolio: inverse_vol
   - backtest: monthly
   - universe: nifty50
@@ -259,10 +272,14 @@ Outputs a timestamped snapshot to `nifty_ticker/nifty_snapshots/`. Copy the symb
 
 ---
 
-## Running Tests
+## Running Tests & Benchmarks
 
 ```bash
+# Run unit and integration tests
 uv run pytest tests/ -v
+
+# Run AR model fitting micro-benchmark (Batched OLS vs statsmodels MLE)
+uv run python benchmark_fit_time.py
 ```
 
 ---
