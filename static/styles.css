@@ -600,3 +600,50 @@ label.span-2 {
   color: var(--muted);
   text-transform: capitalize;
 }
+
+/* ── Asynchronous Progress Bar Styles ── */
+.progress-card {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(25, 25, 25, 0.7);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.progress-header strong {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.progress-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffffff, #808080);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+}
+
+.progress-step-text {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

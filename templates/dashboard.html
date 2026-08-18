@@ -59,7 +59,7 @@
       </div>
 
 
-      <div class="field-section strat-fields" id="fields-momentum_12_1" style="{{ '' if form_values.strategy == 'momentum_12_1' else 'display:none' }}">
+      <div class="field-section strat-fields" id="fields-momentum_12_1" {% if form_values.strategy != 'momentum_12_1' %}style="display:none"{% endif %}>
         <p class="field-section-label">Signal — Momentum 12-1</p>
         <div class="field-grid">
           <label>
@@ -74,7 +74,7 @@
       </div>
 
 
-      <div class="field-section strat-fields" id="fields-arima" style="{{ '' if form_values.strategy == 'arima' else 'display:none' }}">
+      <div class="field-section strat-fields" id="fields-arima" {% if form_values.strategy != 'arima' %}style="display:none"{% endif %}>
         <p class="field-section-label">Signal — AR Model</p>
         <div class="field-grid">
           <label>
@@ -123,55 +123,48 @@
   </article>
 
   <aside class="panel status-panel">
-    {% if error_message %}
-    <div class="status-card error-card">
-      <p class="eyebrow">Run error</p>
-      <p>{{ error_message }}</p>
+    <div class="status-card progress-card" id="progressCard" style="display: none;">
+      <p class="eyebrow">Execution Progress</p>
+      <div class="progress-header">
+        <span id="jobStatusBadge" class="strat-pill">QUEUED</span>
+        <strong id="progressPercentText">0%</strong>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+      <p class="progress-step-text" id="progressStepText">Initializing task...</p>
     </div>
-    {% endif %}
 
-    {% if snapshot %}
-    <div class="status-card strategy-badge-card">
-      <p class="eyebrow">Strategy</p>
-      <p class="strategy-name-display">{{ snapshot.config.strategy.name | replace("_", " ") | title }}</p>
+    <div class="status-card error-card" id="errorCard" style="display: none;">
+      <p class="eyebrow">Run error</p>
+      <p id="errorMessageText"></p>
     </div>
-    <div class="status-card">
-      <p class="eyebrow">Key metrics</p>
-      <div class="metric-rail">
-        {% for card in summary_cards %}
-        <div class="metric-chip">
-          <span>{{ card.label }}</span>
-          <strong>{{ card.value }}</strong>
+
+    <div id="resultsContainer">
+      <div class="status-card">
+        <p class="eyebrow">Ready to run</p>
+        <p>Select a strategy, configure parameters, and click <strong>Run backtest</strong>.</p>
+      </div>
+      <div class="status-card strategies-info-card">
+        <p class="eyebrow">Available strategies</p>
+        {% for strat in strategies %}
+        <div class="strat-info-row">
+          <span class="strat-pill">{{ strat | replace("_", " ") | title }}</span>
         </div>
         {% endfor %}
       </div>
     </div>
-    {% else %}
-    <div class="status-card">
-      <p class="eyebrow">Ready to run</p>
-      <p>Select a strategy, configure parameters, and click <strong>Run backtest</strong>.</p>
-    </div>
-    <div class="status-card strategies-info-card">
-      <p class="eyebrow">Available strategies</p>
-      {% for strat in strategies %}
-      <div class="strat-info-row">
-        <span class="strat-pill">{{ strat | replace("_", " ") | title }}</span>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
   </aside>
 </section>
 
-{% if snapshot %}
-<section class="grid-2">
+<section class="grid-2" id="resultsSection" style="display: none;">
   <article class="panel chart-panel">
     <div class="panel-heading">
       <div>
         <p class="eyebrow">Equity curve</p>
         <h3>Portfolio value over time</h3>
       </div>
-      <div class="value-pill">₹{{ "{:,.2f}".format(equity_end) if equity_end else "0.00" }}</div>
+      <div class="value-pill" id="equityEndVal">₹0.00</div>
     </div>
     <div class="chart-frame">
       <svg viewBox="0 0 1200 360" preserveAspectRatio="none" aria-label="Equity curve">
@@ -190,8 +183,8 @@
         </defs>
         <rect x="28" y="28" width="1144" height="304" fill="url(#gridPattern)" />
         <path d="M 28,332 L 1172,332 L 1172,28 L 28,28 Z" fill="rgba(255,255,255,0.02)" />
-        <path d="{{ chart_path }} L 1172,332 L 28,332 Z" fill="url(#areaGradient)" />
-        <path d="{{ chart_path }}" fill="none" stroke="url(#lineGradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+        <path id="svgAreaPath" d="" fill="url(#areaGradient)" />
+        <path id="svgLinePath" d="" fill="none" stroke="url(#lineGradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
         <line x1="28" y1="332" x2="1172" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
         <line x1="28" y1="28" x2="28" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
       </svg>
@@ -199,17 +192,17 @@
         <div class="chart-axis">
           <div class="axis-label axis-y-max">
             <span class="label-text">High</span>
-            <span class="label-value">₹{{ "{:,.0f}".format(chart_max) if chart_max else "0" }}</span>
+            <span class="label-value" id="chartHighVal">₹0</span>
           </div>
           <div class="axis-label axis-y-min">
             <span class="label-text">Low</span>
-            <span class="label-value">₹{{ "{:,.0f}".format(chart_min) if chart_min else "0" }}</span>
+            <span class="label-value" id="chartLowVal">₹0</span>
           </div>
         </div>
         <div class="chart-legend">
           <div class="legend-item">
             <span class="legend-dot"></span>
-            <span>{{ snapshot.start_date }} → {{ snapshot.end_date or "present" }}</span>
+            <span id="chartRangeVal">-- → --</span>
           </div>
         </div>
       </div>
@@ -222,25 +215,14 @@
         <p class="eyebrow">Current allocation</p>
         <h3>Largest active weights</h3>
       </div>
-      <div class="value-pill">{{ holdings | length }} names</div>
+      <div class="value-pill" id="holdingsCountVal">0 names</div>
     </div>
-    <div class="holdings-list">
-      {% for item in holdings %}
-      <div class="holding-row">
-        <div class="holding-meta">
-          <strong>{{ item.symbol }}</strong>
-          <span>{{ "{:.2f}".format(item.percent) }}%</span>
-        </div>
-        <div class="bar-track"><div class="bar-fill" style="width: {{ item.percent }}%"></div></div>
-      </div>
-      {% endfor %}
+    <div class="holdings-list" id="holdingsList">
     </div>
   </article>
 </section>
-{% endif %}
 
 <script>
-
   const tabs = document.querySelectorAll('.strat-tab');
   const stratInput = document.getElementById('strategyInput');
   const allFields = document.querySelectorAll('.strat-fields');
@@ -248,31 +230,198 @@
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       const strat = tab.dataset.strategy;
-
-
       tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
       tab.classList.add('active');
       tab.setAttribute('aria-selected', 'true');
 
-
       stratInput.value = strat;
-
-
       allFields.forEach(f => {
         f.style.display = f.id === `fields-${strat}` ? '' : 'none';
       });
     });
   });
 
+  const form = document.getElementById('backtestForm');
+  const submitBtn = form.querySelector('button[type="submit"]');
 
-  document.getElementById('backtestForm').addEventListener('submit', () => {
-    allFields.forEach(section => {
-      if (section.style.display === 'none') {
-        section.querySelectorAll('input, select').forEach(el => {
-          el.disabled = true;
-        });
-      }
+  const progressCard = document.getElementById('progressCard');
+  const progressBarFill = document.getElementById('progressBarFill');
+  const progressPercentText = document.getElementById('progressPercentText');
+  const progressStepText = document.getElementById('progressStepText');
+  const jobStatusBadge = document.getElementById('jobStatusBadge');
+
+  const errorCard = document.getElementById('errorCard');
+  const errorMessageText = document.getElementById('errorMessageText');
+
+  const resultsContainer = document.getElementById('resultsContainer');
+  const resultsSection = document.getElementById('resultsSection');
+
+  function resetUI() {
+    errorCard.style.display = 'none';
+    progressCard.style.display = 'block';
+    progressBarFill.style.width = '0%';
+    progressPercentText.innerText = '0%';
+    progressStepText.innerText = 'Submitting backtest job...';
+    jobStatusBadge.innerText = 'QUEUED';
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Running...';
+  }
+
+  function updateProgress(pct, statusMsg, status) {
+    const roundedPct = Math.round(pct * 100);
+    progressBarFill.style.width = `${roundedPct}%`;
+    progressPercentText.innerText = `${roundedPct}%`;
+    if (statusMsg) progressStepText.innerText = statusMsg;
+    if (status) jobStatusBadge.innerText = status;
+  }
+
+  function showError(msg) {
+    progressCard.style.display = 'none';
+    errorCard.style.display = 'block';
+    errorMessageText.innerText = msg;
+    finishJob();
+  }
+
+  function finishJob() {
+    submitBtn.disabled = false;
+    submitBtn.innerText = 'Run backtest';
+  }
+
+  function renderSnapshot(snap) {
+    progressCard.style.display = 'none';
+
+    // Render results cards
+    let metricsHtml = `
+      <div class="status-card strategy-badge-card">
+        <p class="eyebrow">Strategy</p>
+        <p class="strategy-name-display">${snap.strategy_name.replace(/_/g, ' ')}</p>
+      </div>
+      <div class="status-card">
+        <p class="eyebrow">Key metrics</p>
+        <div class="metric-rail">
+          <div class="metric-chip"><span>Total return</span><strong>${snap.metrics.total_return}</strong></div>
+          <div class="metric-chip"><span>Annual return</span><strong>${snap.metrics.annual_return}</strong></div>
+          <div class="metric-chip"><span>Volatility</span><strong>${snap.metrics.volatility_annual}</strong></div>
+          <div class="metric-chip"><span>Sharpe</span><strong>${snap.metrics.sharpe_ratio}</strong></div>
+          <div class="metric-chip"><span>Max drawdown</span><strong>${snap.metrics.max_drawdown}</strong></div>
+          <div class="metric-chip"><span>Days traded</span><strong>${snap.metrics.days_traded}</strong></div>
+        </div>
+      </div>
+    `;
+    resultsContainer.innerHTML = metricsHtml;
+
+    // Render Chart
+    document.getElementById('equityEndVal').innerText = `₹${snap.equity_end.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    document.getElementById('chartHighVal').innerText = `₹${Math.round(snap.chart_max).toLocaleString('en-IN')}`;
+    document.getElementById('chartLowVal').innerText = `₹${Math.round(snap.chart_min).toLocaleString('en-IN')}`;
+    document.getElementById('chartRangeVal').innerText = `${snap.start_date} → ${snap.end_date}`;
+
+    document.getElementById('svgLinePath').setAttribute('d', snap.chart_path);
+    document.getElementById('svgAreaPath').setAttribute('d', `${snap.chart_path} L 1172,332 L 28,332 Z`);
+
+    // Render Holdings
+    const holdingsList = document.getElementById('holdingsList');
+    document.getElementById('holdingsCountVal').innerText = `${snap.holdings.length} names`;
+
+    let holdingsHtml = '';
+    snap.holdings.forEach(item => {
+      holdingsHtml += `
+        <div class="holding-row">
+          <div class="holding-meta">
+            <strong>${item.symbol}</strong>
+            <span>${item.percent.toFixed(2)}%</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width: ${item.percent}%"></div></div>
+        </div>
+      `;
     });
+    holdingsList.innerHTML = holdingsHtml;
+
+    resultsSection.style.display = 'grid';
+    finishJob();
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    resetUI();
+
+    const formData = new FormData(form);
+    const payload = {};
+    formData.forEach((val, key) => {
+      const fieldSection = form.querySelector(`[name="${key}"]`)?.closest('.strat-fields');
+      if (fieldSection && fieldSection.style.display === 'none') {
+        return; // skip inactive strategy fields
+      }
+      if (val !== '') payload[key] = val;
+    });
+
+    try {
+      const resp = await fetch('/api/backtest/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Server returned HTTP ${resp.status}`);
+      }
+
+      const jobData = await resp.json();
+      connectWebSocket(jobData.job_id);
+    } catch (err) {
+      showError('Failed to launch backtest: ' + err.message);
+    }
   });
+
+  function connectWebSocket(jobId) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/backtest/${jobId}`;
+    let ws = null;
+
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (e) {
+      pollFallback(jobId);
+      return;
+    }
+
+    ws.onmessage = (evt) => {
+      const data = JSON.parse(evt.data);
+      updateProgress(data.progress, data.status_message, data.status);
+
+      if (data.status === 'COMPLETED' && data.snapshot) {
+        renderSnapshot(data.snapshot);
+        ws.close();
+      } else if (data.status === 'FAILED') {
+        showError(data.error || data.status_message);
+        ws.close();
+      }
+    };
+
+    ws.onerror = () => {
+      pollFallback(jobId);
+    };
+  }
+
+  function pollFallback(jobId) {
+    const interval = setInterval(async () => {
+      try {
+        const resp = await fetch(`/api/backtest/jobs/${jobId}`);
+        const data = await resp.json();
+        updateProgress(data.progress, data.status_message, data.status);
+
+        if (data.status === 'COMPLETED' && data.snapshot) {
+          clearInterval(interval);
+          renderSnapshot(data.snapshot);
+        } else if (data.status === 'FAILED') {
+          clearInterval(interval);
+          showError(data.error || data.status_message);
+        }
+      } catch (err) {
+        clearInterval(interval);
+        showError('Polling error: ' + err.message);
+      }
+    }, 600);
+  }
 </script>
 {% endblock %}

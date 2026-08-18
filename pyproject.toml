@@ -16,6 +16,7 @@ dependencies = [
     "statsmodels>=0.14.0",
     "uvicorn>=0.30.0",
     "yfinance>=1.2.0",
+    "httpx>=0.28.1",
 ]
 
 [build-system]

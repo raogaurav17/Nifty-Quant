@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Body
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from nifty_quant.application.backtest_runner import build_backtest_snapshot, load_config
+from nifty_quant.application.job_manager import JobManager, JobStatus
 from nifty_quant.domain.strategies.registry import available_strategies
 
 
@@ -21,6 +23,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 app = FastAPI(title="Nifty Quant Dashboard")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+job_manager = JobManager.get_instance()
 
 # Strategy-specific query params
 _STRATEGY_PARAMS: dict[str, list[tuple[str, str]]] = {
@@ -36,15 +39,11 @@ _STRATEGY_PARAMS: dict[str, list[tuple[str, str]]] = {
 }
 
 
-def _query_overrides(request: Request) -> list[str]:
-    params = request.query_params
-    overrides: list[str] = []
-
-    # Strategy group
-    strategy = params.get("strategy", "momentum_12_1")
+def _dict_to_overrides(params: Dict[str, Any]) -> List[str]:
+    overrides: List[str] = []
+    strategy = str(params.get("strategy", "momentum_12_1"))
     overrides.append(f"strategy={strategy}")
 
-    # Backtest params
     for key, qp in [
         ("backtest.start_date",      "start_date"),
         ("backtest.end_date",        "end_date"),
@@ -54,7 +53,6 @@ def _query_overrides(request: Request) -> list[str]:
         if v not in (None, ""):
             overrides.append(f"{key}={v}")
 
-    # Sizing params
     for key, qp in [
         ("strategy.top_k",              "top_k"),
         ("strategy.vol_lookback_days",  "vol_lookback_days"),
@@ -66,13 +64,16 @@ def _query_overrides(request: Request) -> list[str]:
         if v not in (None, ""):
             overrides.append(f"{key}={v}")
 
-    # Strategy-specific params
     for key, qp in _STRATEGY_PARAMS.get(strategy, []):
         v = params.get(qp)
         if v not in (None, ""):
             overrides.append(f"{key}={v}")
 
     return overrides
+
+
+def _query_overrides(request: Request) -> list[str]:
+    return _dict_to_overrides(dict(request.query_params))
 
 
 def _query_values(request: Request, base_cfg: dict[str, Any]) -> dict[str, Any]:
@@ -112,32 +113,75 @@ def _summary_cards(snapshot) -> list[dict]:
     ]
 
 
+@app.post("/api/backtest/run")
+async def run_backtest_api(payload: Optional[Dict[str, Any]] = Body(None), request: Request = None) -> JSONResponse:
+    params: Dict[str, Any] = {}
+    if payload:
+        params.update(payload)
+    if request and request.query_params:
+        params.update(dict(request.query_params))
+
+    overrides = _dict_to_overrides(params)
+    job = job_manager.submit_job(overrides)
+    return JSONResponse(job_manager.to_dict(job))
+
+
+@app.get("/api/backtest/jobs/{job_id}")
+async def get_job_status(job_id: str) -> JSONResponse:
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JSONResponse(job_manager.to_dict(job))
+
+
+@app.websocket("/ws/backtest/{job_id}")
+async def websocket_backtest_progress(websocket: WebSocket, job_id: str) -> None:
+    await websocket.accept()
+    job = job_manager.get_job(job_id)
+    if not job:
+        await websocket.send_json({"error": "Job not found", "status": "FAILED"})
+        await websocket.close()
+        return
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+
+    def listener(data: Dict[str, Any]) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, data)
+
+    job_manager.add_listener(job_id, listener)
+    await websocket.send_json(job_manager.to_dict(job))
+
+    try:
+        while True:
+            data = await queue.get()
+            await websocket.send_json(data)
+            if data.get("status") in (JobStatus.COMPLETED.value, JobStatus.FAILED.value):
+                break
+    except WebSocketDisconnect:
+        pass
+    finally:
+        job_manager.remove_listener(job_id, listener)
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request) -> HTMLResponse:
     base_cfg = load_config([])
     form_values = _query_values(request, base_cfg)
-    should_run = request.query_params.get("run") == "1"
-
-    snapshot = None
-    error_message = None
-    if should_run:
-        try:
-            snapshot = build_backtest_snapshot(_query_overrides(request))
-        except Exception as exc:
-            error_message = str(exc)
 
     context = {
         "request": request,
         "base_config": base_cfg,
         "form_values": form_values,
         "strategies": available_strategies(),
-        "snapshot": snapshot,
-        "summary_cards": _summary_cards(snapshot) if snapshot else [],
-        "error_message": error_message,
-        "equity_end": snapshot.result.equity_curve.iloc[-1] if snapshot else None,
-        "chart_path": snapshot.chart_path if snapshot else "",
-        "chart_min": snapshot.chart_min if snapshot else 0.0,
-        "chart_max": snapshot.chart_max if snapshot else 0.0,
-        "holdings": snapshot.holdings if snapshot else [],
+        "snapshot": None,
+        "summary_cards": [],
+        "error_message": None,
+        "equity_end": None,
+        "chart_path": "",
+        "chart_min": 0.0,
+        "chart_max": 0.0,
+        "holdings": [],
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
+

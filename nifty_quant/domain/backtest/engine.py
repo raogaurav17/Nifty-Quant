@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -30,25 +30,42 @@ class BacktestEngine:
         self.strategy = strategy if strategy is not None else Momentum12_1Strategy()
         self.rebalance_every = rebalance_every
 
-
-
     def run(
         self,
         symbols: List[str],
         start_date: date,
         end_date: date | None,
         initial_capital: float,
+        progress_callback: Callable[[float, str], None] | None = None,
     ) -> BacktestResult:
+
+        if progress_callback:
+            progress_callback(0.20, "Fetching historical market data...")
 
         price_data = self.price_repo.get_prices(
             symbols=symbols,
             start_date=start_date,
             end_date=end_date,
         )
+
+        if progress_callback:
+            progress_callback(0.35, "Aligning price matrix and filtering coverage...")
+
         prices = self._align_prices(price_data)
 
         daily_returns = prices.pct_change().dropna()
-        weights = self._build_weights(prices=prices, daily_returns=daily_returns)
+
+        if progress_callback:
+            progress_callback(0.45, "Calculating strategy signals & allocations...")
+
+        weights = self._build_weights(
+            prices=prices,
+            daily_returns=daily_returns,
+            progress_callback=progress_callback,
+        )
+
+        if progress_callback:
+            progress_callback(0.80, "Applying trade costs and calculating portfolio equity...")
 
         # Apply weights from yesterday to today's return
         portfolio_returns = (weights.shift(1) * daily_returns).sum(axis=1)
@@ -67,6 +84,9 @@ class BacktestEngine:
         equity_curve = (1 + net_returns).cumprod() * initial_capital
         trades = turnover.to_frame(name="turnover")
 
+        if progress_callback:
+            progress_callback(0.90, "Finalizing backtest metrics...")
+
         return BacktestResult(
             equity_curve=equity_curve,
             returns=net_returns,
@@ -74,12 +94,11 @@ class BacktestEngine:
             trades=trades,
         )
 
-
-
     def _build_weights(
         self,
         prices: pd.DataFrame,
         daily_returns: pd.DataFrame,
+        progress_callback: Callable[[float, str], None] | None = None,
     ) -> pd.DataFrame:
         """Schedule rebalance and build weights."""
         all_dates = daily_returns.index
@@ -96,13 +115,18 @@ class BacktestEngine:
                 rebalance_dates.append(dt)
 
         sparse_weights: Dict[pd.Timestamp, pd.Series] = {}
-        for dt in rebalance_dates:
+        total_rebalances = len(rebalance_dates)
+        for idx, dt in enumerate(rebalance_dates):
             w = self.strategy.select_and_weight(
                 prices=prices,
                 daily_returns=daily_returns,
                 as_of=dt,
             )
             sparse_weights[dt] = w
+            if progress_callback and total_rebalances > 0:
+                pct = 0.45 + 0.30 * ((idx + 1) / total_rebalances)
+                date_str = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)
+                progress_callback(pct, f"Rebalancing strategy ({idx + 1}/{total_rebalances}) - {date_str}")
 
         if not sparse_weights:
             n = daily_returns.shape[1]

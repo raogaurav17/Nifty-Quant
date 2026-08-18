@@ -16,13 +16,15 @@ A systematic, **multi-strategy** backtesting framework for the NSE NIFTY 50 univ
 ## Features
 
 - **Strategy Plugin System** — each strategy lives in its own file; swap with a single CLI flag.
+- **Async Compute & Job Queue** — background thread execution (`JobManager`) decoupled from web request loops.
+- **Real-Time Progress Streaming** — WebSockets (`/ws/backtest/{job_id}`) and REST API (`/api/backtest/...`) stream live backtest progress bars & status updates.
 - **Momentum 12-1** — classic cross-sectional momentum with inverse-vol sizing.
 - **AR(p) / ARIMA Signal** — vectorised autoregressive return forecast (batched numpy OLS, ~1000× faster than MLE).
 - **Inverse Volatility Sizing** — positions balanced by 60-day rolling σ, capped at 10% per stock.
 - **Realistic Cost Modelling** — brokerage + slippage applied at every rebalance.
 - **NIFTY 50 Universe** — India's 50 largest listed companies.
-- **Hydra Configuration** — every parameter (strategy, dates, capital, costs) overrideable from the CLI.
-- **Web Dashboard** — FastAPI + Jinja2 interface to visualise and replay backtests.
+- **Hydra Configuration** — every parameter (strategy, dates, capital, costs) overrideable from CLI or web UI.
+- **Web Dashboard** — FastAPI + Jinja2 + WebSocket interface to visualize and replay backtests.
 
 ---
 
@@ -142,10 +144,12 @@ Nifty-Quant/
 │   └── universe/nifty50.yaml          # NIFTY 50 symbol list
 ├── nifty_quant/
 │   ├── main.py                        # CLI entry point
-│   ├── application/backtest_runner.py # Orchestration layer
+│   ├── application/
+│   │   ├── backtest_runner.py         # Orchestration layer
+│   │   └── job_manager.py             # Async job queue & worker thread pool
 │   ├── bootstrap/config_schema.py     # Config validation
 │   ├── domain/
-│   │   ├── backtest/engine.py         # Strategy-agnostic backtest engine
+│   │   ├── backtest/engine.py         # Strategy-agnostic engine with progress callbacks
 │   │   ├── strategies/
 │   │   │   ├── base.py                # Strategy ABC
 │   │   │   ├── momentum_12_1.py       # Momentum 12-1 implementation
@@ -157,9 +161,9 @@ Nifty-Quant/
 │   │   ├── data/yahoo_price_repository.py
 │   │   └── execution/india_equities.py
 │   ├── interfaces/                    # Abstract interfaces (DI boundaries)
-│   └── web/app.py                     # FastAPI dashboard
+│   └── web/app.py                     # FastAPI dashboard, REST & WebSocket API
 ├── nifty_ticker/                      # NSE constituent scraper
-└── tests/                             # Unit + integration tests
+└── tests/                             # Unit, integration & async job tests
 ```
 
 ---
@@ -228,17 +232,19 @@ rebalance_every: 21      # trading days between rebalances
 ## Architecture
 
 ```
-CLI (argparse overrides)
-    └── load_config()           ← Hydra compose API
-            └── build_backtest_snapshot(DictConfig)
-                    ├── build_strategy(cfg)       ← registry factory
-                    │       └── Strategy.select_and_weight()
-                    └── BacktestEngine.run()
-                            ├── PriceRepository   ← interface
-                            └── ExecutionModel    ← interface
+Web Dashboard (FastAPI / WebSockets) / CLI
+    ├── POST /api/backtest/run
+    │      └── JobManager.submit_job() [ThreadPoolExecutor]
+    │              └── build_backtest_snapshot(DictConfig, progress_callback)
+    │                      ├── build_strategy(cfg)       ← registry factory
+    │                      │       └── Strategy.select_and_weight()
+    │                      └── BacktestEngine.run(progress_callback)
+    │                              ├── PriceRepository   ← interface
+    │                              └── ExecutionModel    ← interface
+    └── WebSocket /ws/backtest/{job_id} ← streams real-time status & progress %
 ```
 
-The engine is **strategy-agnostic** — it schedules rebalances, applies costs, and builds the equity curve. All signal generation and sizing live inside the injected `Strategy` object.
+The engine is **strategy-agnostic** — it schedules rebalances, applies costs, and builds the equity curve. All signal generation and sizing live inside the injected `Strategy` object, while compute runs asynchronously off the main ASGI event loop.
 
 ---
 
@@ -271,7 +277,8 @@ uv run pytest tests/ -v
 | `statsmodels` | ARIMA MLE (optional, `method=mle` only) |
 | `hydra-core` | Config management |
 | `omegaconf` | Config object model |
-| `fastapi` / `uvicorn` | Web dashboard |
+| `fastapi` / `uvicorn` | Web dashboard & REST/WebSocket server |
+| `httpx` | Async HTTP client for API testing |
 | `curl_cffi` | NSE scraper (Chrome TLS impersonation) |
 
 ---

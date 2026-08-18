@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
@@ -117,8 +117,12 @@ def _build_recent_trades(result: BacktestResult) -> list[dict[str, Any]]:
 
 def build_backtest_snapshot(
     cfg: DictConfig | list[str] | None = None,
+    progress_callback: Callable[[float, str], None] | None = None,
 ) -> BacktestSnapshot:
     """Run the backtest and return a rich snapshot."""
+    if progress_callback:
+        progress_callback(0.05, "Loading configuration & parameters...")
+
     if not isinstance(cfg, DictConfig):
         cfg = load_config(cfg)
 
@@ -141,6 +145,9 @@ def build_backtest_snapshot(
         brokerage_rate=float(execution_cfg["brokerage_cost"]),
         slippage_rate=float(execution_cfg["slippage"]),
     )
+
+    if progress_callback:
+        progress_callback(0.12, f"Initializing strategy [{strategy_cfg.get('name', 'momentum')}]...")
 
     strategy = build_strategy(strategy_cfg)
 
@@ -171,6 +178,7 @@ def build_backtest_snapshot(
         start_date=fetch_start,
         end_date=end_date,
         initial_capital=initial_capital,
+        progress_callback=progress_callback,
     )
 
     if result.equity_curve.empty:
