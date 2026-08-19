@@ -20,7 +20,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-app = FastAPI(title="Nifty Quant Dashboard")
+app = FastAPI(title="Nifty-Quant Dashboard")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 job_manager = JobManager.get_instance()
@@ -30,6 +30,9 @@ _STRATEGY_PARAMS: dict[str, list[tuple[str, str]]] = {
     "momentum_12_1": [
         ("strategy.lookback_days",    "lookback_days"),
         ("strategy.skip_recent_days", "skip_recent_days"),
+    ],
+    "low_vol": [
+        ("strategy.lookback_days",    "lookback_days"),
     ],
     "arima": [
         ("strategy.arima_p",   "arima_p"),

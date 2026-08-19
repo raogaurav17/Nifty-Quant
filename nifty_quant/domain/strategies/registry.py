@@ -21,9 +21,11 @@ def _register_defaults() -> None:
     """Populate registry with defaults."""
     from nifty_quant.domain.strategies.momentum_12_1 import Momentum12_1Strategy  # noqa: F401
     from nifty_quant.domain.strategies.arima import ARIMAStrategy  # noqa: F401
+    from nifty_quant.domain.strategies.low_vol import LowVolatilityStrategy  # noqa: F401
 
     _REGISTRY.setdefault("momentum_12_1", Momentum12_1Strategy)
     _REGISTRY.setdefault("arima", ARIMAStrategy)
+    _REGISTRY.setdefault("low_vol", LowVolatilityStrategy)
 
 
 def build_strategy(cfg: Dict[str, Any]) -> Strategy:

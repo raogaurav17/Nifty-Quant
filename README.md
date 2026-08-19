@@ -3,38 +3,39 @@
 [![Python 3.14+](https://img.shields.io/badge/Python-3.14+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A systematic, **multi-strategy** backtesting framework for the NSE NIFTY 50 universe, built in Python. Strategies are plug-in modules selected at runtime via Hydra config — no code changes required to switch between them.
+A systematic, **multi-strategy** backtesting framework for the NSE NIFTY 50 universe, built in Python. Strategies are plug-in modules selected at runtime via Hydra config or the web UI — no code changes required to switch between them.
 
 ---
 
 ## Features
 
-- **Strategy Plugin System** — each strategy lives in its own file; swap with a single CLI flag.
+- **Strategy Plugin System** — each strategy lives in its own file; swap with a single CLI flag or dropdown selector.
+- **Low-Volatility Anomaly** — ranks universe constituents by trailing realized volatility and weights top-K lowest-risk stocks.
+- **Momentum 12-1** — classic cross-sectional momentum with inverse-vol sizing and recent-month skip.
+- **AR(p) / ARIMA Signal** — vectorised autoregressive return forecast (batched numpy OLS, ~20,000× faster than MLE).
 - **Async Compute & Job Queue** — background thread execution (`JobManager`) decoupled from web request loops.
 - **Real-Time Progress Streaming** — WebSockets (`/ws/backtest/{job_id}`) and REST API (`/api/backtest/...`) stream live backtest progress bars & status updates.
-- **Momentum 12-1** — classic cross-sectional momentum with inverse-vol sizing.
-- **AR(p) / ARIMA Signal** — vectorised autoregressive return forecast (batched numpy OLS, ~20,000× faster than MLE).
-- **Inverse Volatility Sizing** — positions balanced by 60-day rolling σ, capped at 10% per stock.
-- **Realistic Cost Modelling** — brokerage + slippage applied at every rebalance.
+- **Inverse Volatility Sizing** — positions balanced by 60-day rolling σ, capped at 20% per stock with volatility targeting.
+- **Realistic Cost Modelling** — brokerage + slippage applied at every rebalance step.
 - **NIFTY 50 Universe** — India's 50 largest listed companies.
 - **Hydra Configuration** — every parameter (strategy, dates, capital, costs) overrideable from CLI or web UI.
-- **Web Dashboard** — FastAPI + Jinja2 + WebSocket interface to visualize and replay backtests.
+- **Web Dashboard** — FastAPI + Jinja2 + WebSocket interface with dynamic strategy selector dropdown and dedicated parameter subwindows.
 
 ---
 
 ## Backtest Results (Jan 2022 – Jun 2026)
 
-| Metric | Momentum 12-1 | AR(2) OLS | AR(2) MLE |
-|---|---|---|---|
-| Total return | **+79.67%** | +58.26% | +55.99% |
-| Annual return | **11.26%** | 8.72% | 8.43% |
-| Annual volatility | 10.06% | 10.73% | 10.59% |
-| Sharpe ratio | **1.11** | 0.83 | 0.82 |
-| Sortino ratio | **1.31** | 1.11 | 1.09 |
-| Max drawdown | **−13.00%** | −20.47% | −20.38% |
-| Calmar ratio | **0.87** | 0.43 | 0.41 |
-| Observations | 1,384 days | 1,384 days | 1,384 days |
-| Time taken | 30.64s | 135.47s | 282.17s |
+| Metric | Low Volatility | Momentum 12-1 | AR(2) OLS | AR(2) MLE |
+|---|---|---|---|---|
+| Total return | +63.85% | **+79.67%** | +58.26% | +55.99% |
+| Annual return | **11.90%** | 11.26% | 8.72% | 8.43% |
+| Annual volatility | **8.52%** | 10.06% | 10.73% | 10.59% |
+| Sharpe ratio | **1.40** | 1.11 | 0.83 | 0.82 |
+| Sortino ratio | **1.68** | 1.31 | 1.11 | 1.09 |
+| Max drawdown | **−11.98%** | −13.00% | −20.47% | −20.38% |
+| Calmar ratio | **0.99** | 0.87 | 0.43 | 0.41 |
+| Observations | 1,384 days | 1,384 days | 1,384 days | 1,384 days |
+| Time taken | **0.04s** | 30.64s | 135.47s | 282.17s |
 
 > Results include brokerage and slippage costs. Not financial advice.
 
@@ -59,6 +60,37 @@ uv run python benchmark_fit_time.py
 ---
 
 ## Strategies
+
+### `low_vol`
+
+Ranks all NIFTY 50 stocks by their trailing realized return volatility, selecting the top-10 lowest-volatility stocks to capture the Low-Volatility Anomaly. Positions are weighted inversely to realized volatility.
+
+```yaml
+# conf/strategy/low_vol.yaml
+name: low_vol
+lookback_days: 252      # Trailing days to measure return volatility
+top_k: 10
+vol_lookback_days: 60
+max_weight: 0.20
+cash_buffer: 0.05
+target_annual_vol: 0.10
+```
+
+### `momentum_12_1`
+
+Ranks all NIFTY 50 stocks by their 12-month total return, skipping the most-recent month to avoid short-term reversal. Selects top-10 and weights inversely to realised volatility.
+
+```yaml
+# conf/strategy/momentum_12_1.yaml
+name: momentum_12_1
+lookback_days: 252      # 12-month return window
+skip_recent_days: 21    # skip last month (reversal avoidance)
+top_k: 10
+vol_lookback_days: 60
+max_weight: 0.20
+cash_buffer: 0.05
+target_annual_vol: 0.10
+```
 
 ### `arima` (default)
 
@@ -86,22 +118,6 @@ cash_buffer: 0.05
 target_annual_vol: 0.10
 ```
 
-### `momentum_12_1`
-
-Ranks all NIFTY 50 stocks by their 12-month total return, skipping the most-recent month to avoid short-term reversal. Selects top-10 and weights inversely to realised volatility.
-
-```yaml
-# conf/strategy/momentum_12_1.yaml
-name: momentum_12_1
-lookback_days: 252      # 12-month return window
-skip_recent_days: 21    # skip last month (reversal avoidance)
-top_k: 10
-vol_lookback_days: 60
-max_weight: 0.20
-cash_buffer: 0.05
-target_annual_vol: 0.10
-```
-
 ---
 
 ## Quick Start
@@ -117,13 +133,13 @@ uv sync
 ### Run a backtest
 
 ```bash
-# Default strategy (ARIMA)
-uv run python main.py
+# Run Low-Volatility strategy
+uv run python main.py strategy=low_vol
 
 # Switch to Momentum 12-1
 uv run python main.py strategy=momentum_12_1
 
-# ARIMA with custom params
+# Run ARIMA with custom params
 uv run python main.py strategy=arima strategy.arima_p=3 strategy.top_k=5
 
 # Override dates and capital (any strategy)
@@ -152,6 +168,7 @@ Nifty-Quant/
 │   ├── portfolio/inverse_vol.yaml     # Sizing parameters
 │   ├── strategy/
 │   │   ├── arima.yaml                 # AR/ARIMA strategy config
+│   │   ├── low_vol.yaml               # Low-Volatility strategy config
 │   │   └── momentum_12_1.yaml         # Momentum strategy config
 │   └── universe/nifty50.yaml          # NIFTY 50 symbol list
 ├── nifty_quant/
@@ -165,6 +182,7 @@ Nifty-Quant/
 │   │   ├── strategies/
 │   │   │   ├── base.py                # Strategy ABC
 │   │   │   ├── arima.py               # AR/ARIMA implementation
+│   │   │   ├── low_vol.py             # Low-Volatility implementation
 │   │   │   ├── momentum_12_1.py       # Momentum 12-1 implementation
 │   │   │   └── registry.py            # Factory decorator: name → Strategy instance
 │   │   ├── metrics.py                 # Performance metrics
@@ -174,6 +192,8 @@ Nifty-Quant/
 │   │   └── execution/india_equities.py
 │   ├── interfaces/                    # Abstract interfaces (DI boundaries)
 │   └── web/app.py                     # FastAPI dashboard, REST & WebSocket API
+├── templates/                         # HTML Jinja2 dashboard templates
+├── static/                            # Dashboard CSS styles and generated assets
 ├── nifty_ticker/                      # NSE constituent scraper
 └── tests/                             # Unit, integration & async job tests
 ```
@@ -222,7 +242,7 @@ uv run python main.py strategy=my_strategy
 
 ```yaml
 defaults:
-  - strategy: arima   # ← change to: momentum_12_1
+  - strategy: low_vol   # ← change to: momentum_12_1 or arima
   - portfolio: inverse_vol
   - backtest: monthly
   - universe: nifty50

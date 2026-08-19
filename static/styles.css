@@ -144,30 +144,67 @@ body {
 
 .hero-panel {
   display: grid;
-  grid-template-columns: minmax(0, 0.84fr) minmax(360px, 0.92fr);
-  gap: 24px;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.15fr);
+  gap: 28px;
   padding: 28px;
+}
+
+.simulator-left-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 20px;
+  padding-right: 20px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.simulator-middle-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.strategy-overview-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(24, 24, 30, 0.9), rgba(16, 16, 22, 0.8));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.strategy-overview-card p {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.hyperparams-header {
+  margin-bottom: 2px;
+}
+
+.hyperparams-header h3 {
+  margin: 2px 0 0;
+  font-size: 1.35rem;
 }
 
 .hero-copy {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 18px;
+  gap: 12px;
 }
 
 .hero-copy h2 {
-  font-size: clamp(2.1rem, 3.6vw, 4rem);
+  font-size: clamp(2rem, 3.2vw, 3.5rem);
   line-height: 0.98;
-  max-width: 11ch;
+  max-width: 12ch;
 }
 
 .hero-text {
   margin: 0;
-  max-width: 58ch;
   color: var(--muted);
-  font-size: 1.02rem;
-  line-height: 1.65;
+  font-size: 0.95rem;
+  line-height: 1.55;
 }
 
 .hero-pills {
@@ -196,7 +233,8 @@ label {
   font-size: 0.9rem;
 }
 
-input {
+input,
+select.select-input {
   width: 100%;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -207,9 +245,95 @@ input {
   outline: none;
 }
 
-input:focus {
+input:focus,
+select.select-input:focus {
   border-color: rgba(255, 255, 255, 0.4);
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+/* Strategy Dropdown & Dedicated Subwindows */
+.strategy-select-container {
+  margin-bottom: 18px;
+}
+
+.strategy-dropdown-select {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: rgba(30, 30, 35, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 18px;
+}
+
+.strategy-dropdown-select:hover {
+  background-color: rgba(40, 40, 48, 0.98);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.strategy-dropdown-select:focus {
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+.strategy-subwindow {
+  padding: 18px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(30, 30, 36, 0.75), rgba(20, 20, 24, 0.65));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  margin-bottom: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.strategy-subwindow.active-subwindow {
+  animation: fadeInSubwindow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInSubwindow {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.subwindow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.subwindow-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.subwindow-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 4px 0 14px;
+  line-height: 1.45;
 }
 
 .primary-btn {
