@@ -11,7 +11,7 @@ from nifty_quant.web.app import app
 
 
 @pytest.fixture(autouse=True)
-def mock_yahoo_prices():
+def mock_yahoo_prices(tmp_path):
     dates = pd.date_range("2024-01-01", periods=100, freq="D")
     fake_df1 = pd.DataFrame({"adj_close": [100.0 + i for i in range(100)], "volume": [1000] * 100}, index=dates)
     fake_df2 = pd.DataFrame({"adj_close": [200.0 + i * 2 for i in range(100)], "volume": [1000] * 100}, index=dates)
@@ -24,7 +24,21 @@ def mock_yahoo_prices():
     def fake_get_prices(self, symbols, start_date, end_date=None):
         return {s: data.get(s, fake_df1) for s in symbols}
 
-    with patch("nifty_quant.infrastructure.data.yahoo_price_repository.YahooPriceRepository.get_prices", new=fake_get_prices):
+    def fake_cached_init(self, upstream, cache_dir="data/cache", force_refresh=False):
+        self.upstream = upstream
+        self.cache_dir = tmp_path
+        self.force_refresh = force_refresh
+        from nifty_quant.infrastructure.data.date_intervals import IntervalRegistry
+        from nifty_quant.infrastructure.data.local_price_store import LocalPriceStore
+        self.registry = IntervalRegistry(self.cache_dir / "intervals.json")
+        self.store = LocalPriceStore(self.cache_dir)
+
+    with (
+        patch("nifty_quant.application.backtest_runner.YahooPriceRepository.get_prices", new=fake_get_prices),
+        patch("nifty_quant.infrastructure.data.yahoo_price_repository.YahooPriceRepository.get_prices", new=fake_get_prices),
+        patch("nifty_quant.application.backtest_runner.CachedPriceRepository.__init__", new=fake_cached_init),
+        patch("nifty_quant.infrastructure.data.cached_price_repository.CachedPriceRepository.__init__", new=fake_cached_init),
+    ):
         yield
 
 

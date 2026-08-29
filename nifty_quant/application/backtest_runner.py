@@ -16,6 +16,7 @@ from nifty_quant.domain.metrics import PerformanceMetrics, calculate_metrics
 from nifty_quant.domain.models import BacktestResult
 from nifty_quant.domain.strategies.base import Strategy
 from nifty_quant.domain.strategies.registry import build_strategy
+from nifty_quant.infrastructure.data.cached_price_repository import CachedPriceRepository
 from nifty_quant.infrastructure.data.yahoo_price_repository import YahooPriceRepository
 from nifty_quant.infrastructure.execution.india_equities import IndiaEquitiesExecutionModel
 
@@ -168,8 +169,21 @@ def build_backtest_snapshot(
     backtest_cfg = config.get("backtest", {})
     rebalance_every = int(backtest_cfg.get("rebalance_every", 21))
 
+    raw_price_repo = YahooPriceRepository()
+    use_cache = bool(data_cfg.get("use_cache", True))
+    if use_cache:
+        cache_dir = str(data_cfg.get("cache_dir", "data/cache"))
+        force_refresh = bool(data_cfg.get("force_refresh", False))
+        price_repo = CachedPriceRepository(
+            upstream=raw_price_repo,
+            cache_dir=cache_dir,
+            force_refresh=force_refresh,
+        )
+    else:
+        price_repo = raw_price_repo
+
     engine = BacktestEngine(
-        price_repo=YahooPriceRepository(),
+        price_repo=price_repo,
         execution_model=execution_model,
         strategy=strategy,
         rebalance_every=rebalance_every,

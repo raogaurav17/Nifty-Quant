@@ -20,6 +20,9 @@ class DataConfig:
 
     provider: str
     adjusted_prices: bool
+    use_cache: bool = True
+    cache_dir: str = "data/cache"
+    force_refresh: bool = False
 
 
 @dataclass

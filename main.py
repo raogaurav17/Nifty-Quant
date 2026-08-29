@@ -22,6 +22,7 @@ import pandas as pd
 
 from nifty_quant.application.backtest_runner import build_backtest_snapshot, load_config
 from nifty_quant.domain.strategies.registry import build_strategy
+from nifty_quant.infrastructure.data.cached_price_repository import CachedPriceRepository
 from nifty_quant.infrastructure.data.yahoo_price_repository import YahooPriceRepository
 
 
@@ -86,7 +87,19 @@ def main() -> None:
     strategy = snapshot.strategy or build_strategy(strategy_cfg)
 
     fetch_from = today - relativedelta(months=14)
-    repo = YahooPriceRepository()
+    data_cfg = config.get("data", {})
+    raw_repo = YahooPriceRepository()
+    if bool(data_cfg.get("use_cache", True)):
+        cache_dir = str(data_cfg.get("cache_dir", "data/cache"))
+        force_refresh = bool(data_cfg.get("force_refresh", False))
+        repo = CachedPriceRepository(
+            upstream=raw_repo,
+            cache_dir=cache_dir,
+            force_refresh=force_refresh,
+        )
+    else:
+        repo = raw_repo
+
     price_data = repo.get_prices(
         symbols=selected_symbols, start_date=fetch_from, end_date=today
     )
