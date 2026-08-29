@@ -13,6 +13,7 @@ A systematic, **multi-strategy** backtesting framework for the NSE NIFTY 50 univ
 - **Low-Volatility Anomaly** — ranks universe constituents by trailing realized volatility and weights top-K lowest-risk stocks.
 - **Momentum 12-1** — classic cross-sectional momentum with inverse-vol sizing and recent-month skip.
 - **AR(p) / ARIMA Signal** — vectorised autoregressive return forecast (batched numpy OLS, ~20,000× faster than MLE).
+- **Interval-Aware Local Data Cache** — tracks downloaded date intervals per ticker, calculates and fetches only missing date gaps, and stores unified per-symbol price files without redundant network calls.
 - **Async Compute & Job Queue** — background thread execution (`JobManager`) decoupled from web request loops.
 - **Real-Time Progress Streaming** — WebSockets (`/ws/backtest/{job_id}`) and REST API (`/api/backtest/...`) stream live backtest progress bars & status updates.
 - **Inverse Volatility Sizing** — positions balanced by 60-day rolling σ, capped at 20% per stock with volatility targeting.
@@ -188,10 +189,18 @@ Nifty-Quant/
 │   │   ├── metrics.py                 # Performance metrics
 │   │   └── models.py                  # BacktestResult dataclass
 │   ├── infrastructure/
-│   │   ├── data/yahoo_price_repository.py
+│   │   ├── data/
+│   │   │   ├── cached_price_repository.py # Interval-aware caching decorator
+│   │   │   ├── date_intervals.py          # Date interval math & registry
+│   │   │   ├── local_price_store.py       # Consolidated per-symbol storage manager
+│   │   │   └── yahoo_price_repository.py  # Upstream Yahoo Finance client
 │   │   └── execution/india_equities.py
 │   ├── interfaces/                    # Abstract interfaces (DI boundaries)
 │   └── web/app.py                     # FastAPI dashboard, REST & WebSocket API
+├── data/                              # Local data storage (gitignored)
+│   └── cache/
+│       ├── intervals.json             # Registry of downloaded date ranges per symbol
+│       └── prices/*.csv               # Consolidated per-symbol price series
 ├── templates/                         # HTML Jinja2 dashboard templates
 ├── static/                            # Dashboard CSS styles and generated assets
 ├── nifty_ticker/                      # NSE constituent scraper
@@ -260,6 +269,38 @@ initial_capital: 1_000_000
 rebalance_every: 21      # trading days between rebalances
 ```
 
+### `conf/data/yahoo.yaml` — local caching and data provider settings
+
+```yaml
+provider: yahoo
+adjusted_prices: true
+use_cache: true          # enable local interval-aware caching
+cache_dir: "data/cache"  # directory for cached prices & interval registry
+force_refresh: false     # set true to bypass cache and re-download
+```
+
+---
+
+## Local Data Store & Interval Caching
+
+To avoid repeatedly re-downloading market data from Yahoo Finance on every backtest run, the framework includes an **Interval-Aware Caching Layer** (`CachedPriceRepository`):
+
+### How It Works
+
+1. **Interval Registry (`intervals.json`)**: Tracks the exact date intervals `[start, end]` downloaded for each symbol.
+2. **Smart Gap Detection**: When querying a date range $[R_{start}, R_{end}]$, it computes the set difference against covered intervals ($[R_{start}, R_{end}] \setminus \bigcup \mathcal{I}_{covered}$) to find only missing sub-intervals.
+3. **Targeted Upstream Downloads**: Only missing gaps are fetched from Yahoo Finance. Identical gaps across multiple tickers are batched into a single upstream request.
+4. **Consolidated Per-Symbol Storage**: Avoids fragmented per-interval files. Each ticker has a single continuous time-series (`data/cache/prices/<SYMBOL>.csv` or `.parquet`) with atomic writes and date deduplication (`keep="last"`).
+5. **Seamless Range Merging**: Newly downloaded intervals are merged with existing overlapping or adjacent date ranges.
+
+```bash
+# Bypass cache for a single run
+uv run python main.py data.force_refresh=true
+
+# Disable caching completely
+uv run python main.py data.use_cache=false
+```
+
 ---
 
 ## Architecture
@@ -272,8 +313,11 @@ Web Dashboard (FastAPI / WebSockets) / CLI
     │                      ├── build_strategy(cfg)       ← registry factory
     │                      │       └── Strategy.select_and_weight()
     │                      └── BacktestEngine.run(progress_callback)
-    │                              ├── PriceRepository   ← interface
-    │                              └── ExecutionModel    ← interface
+    │                              ├── CachedPriceRepository  ← interval math & local cache
+    │                              │       ├── IntervalRegistry (intervals.json)
+    │                              │       ├── LocalPriceStore  (prices/*.csv)
+    │                              │       └── YahooPriceRepository (upstream fallback)
+    │                              └── ExecutionModel         ← transaction costs
     └── WebSocket /ws/backtest/{job_id} ← streams real-time status & progress %
 ```
 
