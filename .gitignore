@@ -211,4 +211,4 @@ outputs/
 
 .vscode/
 
-data/
+cache_data/
