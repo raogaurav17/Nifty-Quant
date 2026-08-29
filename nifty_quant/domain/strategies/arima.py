@@ -2,27 +2,24 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import warnings
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
 from nifty_quant.domain.strategies.base import Strategy
+from nifty_quant.domain.strategies.registry import register
 
-_DAYS_PER_YEAR = 252
 _LOG = logging.getLogger(__name__)
-
-
 
 
 def _batch_ar_ols(
     history: np.ndarray,   # shape (T, N), columns = symbols
     p: int,
 ) -> np.ndarray:
-    """Fit AR(p) via OLS for all N symbols simultaneously."""
+    """Fit AR(p) via OLS for all N symbols simultaneously using vectorized NumPy."""
     T, N = history.shape
     n_rows = T - p
 
@@ -36,11 +33,10 @@ def _batch_ar_ols(
 
     y_stack = history[p:, :].T
 
-    gram  = np.einsum("nti,ntj->nij", X_stack, X_stack)
-    cross = np.einsum("nti,nt->ni",  X_stack, y_stack)
+    gram = np.einsum("nti,ntj->nij", X_stack, X_stack)
+    cross = np.einsum("nti,nt->ni", X_stack, y_stack)
 
     # Solve systems, fallback on singularity
-    forecasts = np.zeros(N)
     try:
         coeffs = np.linalg.solve(gram, cross[:, :, np.newaxis]).squeeze(-1)  # (N, p+1)
     except np.linalg.LinAlgError:
@@ -53,7 +49,6 @@ def _batch_ar_ols(
             coeffs_list.append(c)
         coeffs = np.array(coeffs_list)  # (N, p+1)
 
-
     x_new = np.empty((N, p + 1))
     for k in range(p):
         x_new[:, k] = history[T - 1 - k, :]   # lag k+1
@@ -63,13 +58,11 @@ def _batch_ar_ols(
     return forecasts
 
 
-
-
 def _mle_forecast_one(
     series: np.ndarray,
     order: tuple[int, int, int],
-) -> Optional[float]:
-    """Fit ARIMA via MLE."""
+) -> float | None:
+    """Fit ARIMA via MLE for a single time series."""
     try:
         from statsmodels.tsa.arima.model import ARIMA
         from statsmodels.tools.sm_exceptions import ConvergenceWarning
@@ -89,10 +82,9 @@ def _mle_forecast_one(
         return None
 
 
-
-
+@register("arima")
 class ARIMAStrategy(Strategy):
-    """AR / ARIMA signal strategy with inverse-vol position sizing."""
+    """AR / ARIMA signal strategy with inverse-volatility position sizing."""
 
     signal_label: str = "AR FORECAST"
     rank_note: str = "Ranked by AR 1-step return forecast -- the actual selection signal."
@@ -126,12 +118,18 @@ class ARIMAStrategy(Strategy):
         self.target_annual_vol = target_annual_vol
         self.max_workers = max_workers
 
+    @property
+    def min_history_days(self) -> int:
+        """Minimum historical price bars required before generating signals."""
+        return max(self.fit_window + 1, self.vol_lookback_days + 1)
+
     def compute_signals(
         self,
         prices: pd.DataFrame,
         daily_returns: pd.DataFrame,
         as_of: pd.Timestamp,
     ) -> dict[str, float]:
+        """Compute AR/ARIMA return forecasts for symbols as of a timestamp."""
         log_returns = np.log1p(daily_returns.loc[:as_of].tail(self.fit_window))
         if self.method == "ols":
             forecasts_arr = self._ols_forecasts(log_returns)
@@ -140,22 +138,19 @@ class ARIMAStrategy(Strategy):
         else:
             return self._mle_forecasts(log_returns)
 
-    @property
-    def min_history_days(self) -> int:
-        return max(self.fit_window + 1, self.vol_lookback_days + 1)
-
     def select_and_weight(
         self,
         prices: pd.DataFrame,
         daily_returns: pd.DataFrame,
         as_of: pd.Timestamp,
     ) -> pd.Series:
+        """Select symbols with positive forecasts and compute inverse-volatility weights."""
         log_returns = np.log1p(daily_returns.loc[:as_of].tail(self.fit_window))
 
         if self.method == "ols":
             forecasts_arr = self._ols_forecasts(log_returns)
             symbols = log_returns.columns.tolist()
-            forecasts: Dict[str, float] = {
+            forecasts: dict[str, float] = {
                 sym: float(fc) for sym, fc in zip(symbols, forecasts_arr)
             }
         else:
@@ -173,105 +168,39 @@ class ARIMAStrategy(Strategy):
         )
         return weights.reindex(prices.columns, fill_value=0.0)
 
-
-
     def _ols_forecasts(self, log_returns: pd.DataFrame) -> np.ndarray:
         """Batched AR(p) OLS across all symbols."""
-        # Drop columns that are all-NaN; fill remaining NaNs with 0
         valid = log_returns.dropna(axis=1, how="all")
         data = valid.fillna(0.0).values  # (T, N)
 
         raw = _batch_ar_ols(data, self.p)
 
-        # Map back; symbols not in 'valid' get forecast 0
         n_all = len(log_returns.columns)
         result = np.zeros(n_all)
         valid_idx = [log_returns.columns.get_loc(c) for c in valid.columns]
         result[valid_idx] = raw
         return result
 
-
-
-    def _mle_forecasts(self, log_returns: pd.DataFrame) -> Dict[str, float]:
+    def _mle_forecasts(self, log_returns: pd.DataFrame) -> dict[str, float]:
+        """Parallel ARIMA MLE forecasts across symbols."""
         symbols = log_returns.columns.tolist()
 
-        def _fit_one(sym: str) -> tuple[str, Optional[float]]:
+        def _fit_one(sym: str) -> tuple[str, float | None]:
             series = log_returns[sym].dropna().values
             return sym, _mle_forecast_one(series, self.order)
 
-        forecasts: Dict[str, float] = {}
+        forecasts: dict[str, float] = {}
         with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
             for sym, fc in pool.map(_fit_one, symbols):
                 if fc is not None:
                     forecasts[sym] = fc
         return forecasts
 
-
-
-    def _select_symbols(self, forecasts: Dict[str, float]) -> List[str]:
+    def _select_symbols(self, forecasts: dict[str, float]) -> list[str]:
+        """Rank and select top-k symbols with positive expected return forecast."""
         positive = {sym: fc for sym, fc in forecasts.items() if fc > 0.0}
         if not positive:
             return []
         ranked = sorted(positive, key=positive.__getitem__, reverse=True)
         return ranked[: self.top_k]
 
-
-
-    def _inverse_vol_weights(
-        self,
-        daily_returns: pd.DataFrame,
-        symbols: List[str],
-        as_of: pd.Timestamp,
-    ) -> pd.Series:
-        ret_slice = daily_returns.loc[:as_of, symbols].tail(self.vol_lookback_days)
-        vols = ret_slice.std(ddof=1).replace(0.0, np.nan)
-        inv_vol = (1.0 / vols).fillna(0.0)
-
-        total = inv_vol.sum()
-        raw_weights = (
-            pd.Series(1.0 / len(symbols), index=symbols)
-            if total == 0.0
-            else inv_vol / total
-        )
-
-        w = self._apply_weight_cap(raw_weights)
-        w = w * (1.0 - self.cash_buffer)
-        return self._apply_vol_target(w, daily_returns, symbols, as_of)
-
-    def _apply_weight_cap(self, weights: pd.Series) -> pd.Series:
-        w = weights.copy()
-        n = len(w)
-        if n <= 1:
-            return w
-
-        # Prevent degenerate equal-weighting when max_weight <= 1/N
-        effective_cap = max(self.max_weight, 1.5 / n) if self.max_weight <= (1.0 / n) else self.max_weight
-
-        for _ in range(100):
-            over, under = w > effective_cap, ~(w > effective_cap)
-            if not over.any():
-                break
-            excess = (w[over] - effective_cap).sum()
-            w[over] = effective_cap
-            if under.any() and w[under].sum() > 0:
-                w[under] += excess * (w[under] / w[under].sum())
-            else:
-                break
-        return w
-
-    def _apply_vol_target(
-        self,
-        weights: pd.Series,
-        daily_returns: pd.DataFrame,
-        symbols: List[str],
-        as_of: pd.Timestamp,
-    ) -> pd.Series:
-        ret_slice = daily_returns.loc[:as_of, symbols].tail(self.vol_lookback_days)
-        cov = ret_slice.cov()
-        w_vec = weights.reindex(symbols, fill_value=0.0).values
-        port_var = float(w_vec @ cov.values @ w_vec)
-        if port_var <= 0.0:
-            return weights
-        target_daily_vol = self.target_annual_vol / np.sqrt(_DAYS_PER_YEAR)
-        scalar = min(target_daily_vol / np.sqrt(port_var), 1.0)
-        return weights * scalar

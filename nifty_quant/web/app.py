@@ -1,18 +1,19 @@
+"""FastAPI application providing web dashboard, REST API, and WebSocket streaming."""
+
 from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Body
+from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from nifty_quant.application.backtest_runner import build_backtest_snapshot, load_config
+from nifty_quant.application.backtest_runner import load_config
 from nifty_quant.application.job_manager import JobManager, JobStatus
 from nifty_quant.domain.strategies.registry import available_strategies
-
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -36,14 +37,15 @@ _STRATEGY_PARAMS: dict[str, list[tuple[str, str]]] = {
     ],
     "arima": [
         ("strategy.arima_p",   "arima_p"),
-        ("strategy.fit_window","fit_window"),
+        ("strategy.fit_window", "fit_window"),
         ("strategy.method",    "arima_method"),
     ],
 }
 
 
-def _dict_to_overrides(params: Dict[str, Any]) -> List[str]:
-    overrides: List[str] = []
+def _dict_to_overrides(params: dict[str, Any]) -> list[str]:
+    """Translate dictionary form parameters into Hydra dotlist overrides."""
+    overrides: list[str] = []
     strategy = str(params.get("strategy", "momentum_12_1"))
     overrides.append(f"strategy={strategy}")
 
@@ -76,10 +78,12 @@ def _dict_to_overrides(params: Dict[str, Any]) -> List[str]:
 
 
 def _query_overrides(request: Request) -> list[str]:
+    """Convert incoming query parameters into Hydra overrides list."""
     return _dict_to_overrides(dict(request.query_params))
 
 
 def _query_values(request: Request, base_cfg: dict[str, Any]) -> dict[str, Any]:
+    """Extract form field values with fallbacks to defaults from base config."""
     params = request.query_params
     strat = base_cfg.get("strategy", {})
     bt = base_cfg.get("backtest", {})
@@ -105,7 +109,8 @@ def _query_values(request: Request, base_cfg: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _summary_cards(snapshot) -> list[dict]:
+def _summary_cards(snapshot: Any) -> list[dict[str, str]]:
+    """Format key performance metrics into dashboard summary card models."""
     return [
         {"label": "Total return",   "value": f"{snapshot.metrics.total_return:.2%}"},
         {"label": "Annual return",  "value": f"{snapshot.metrics.annual_return:.2%}"},
@@ -117,8 +122,9 @@ def _summary_cards(snapshot) -> list[dict]:
 
 
 @app.post("/api/backtest/run")
-async def run_backtest_api(payload: Optional[Dict[str, Any]] = Body(None), request: Request = None) -> JSONResponse:
-    params: Dict[str, Any] = {}
+async def run_backtest_api(payload: dict[str, Any] | None = Body(None), request: Request = None) -> JSONResponse:
+    """Trigger an asynchronous backtest run and return the queued job descriptor."""
+    params: dict[str, Any] = {}
     if payload:
         params.update(payload)
     if request and request.query_params:
@@ -131,6 +137,7 @@ async def run_backtest_api(payload: Optional[Dict[str, Any]] = Body(None), reque
 
 @app.get("/api/backtest/jobs/{job_id}")
 async def get_job_status(job_id: str) -> JSONResponse:
+    """Query current status and results of a backtest job."""
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -139,6 +146,7 @@ async def get_job_status(job_id: str) -> JSONResponse:
 
 @app.websocket("/ws/backtest/{job_id}")
 async def websocket_backtest_progress(websocket: WebSocket, job_id: str) -> None:
+    """Stream live progress and completion updates over WebSocket."""
     await websocket.accept()
     job = job_manager.get_job(job_id)
     if not job:
@@ -147,9 +155,9 @@ async def websocket_backtest_progress(websocket: WebSocket, job_id: str) -> None
         return
 
     loop = asyncio.get_running_loop()
-    queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
-    def listener(data: Dict[str, Any]) -> None:
+    def listener(data: dict[str, Any]) -> None:
         loop.call_soon_threadsafe(queue.put_nowait, data)
 
     job_manager.add_listener(job_id, listener)
@@ -169,6 +177,7 @@ async def websocket_backtest_progress(websocket: WebSocket, job_id: str) -> None
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request) -> HTMLResponse:
+    """Render interactive backtest control dashboard and visualizer."""
     base_cfg = load_config([])
     form_values = _query_values(request, base_cfg)
 
@@ -187,4 +196,5 @@ def dashboard(request: Request) -> HTMLResponse:
         "holdings": [],
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
+
 

@@ -1,9 +1,14 @@
+"""Constituent extractor utility for fetching latest NIFTY 50 tickers from NSE."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
 import time
+
 from curl_cffi import requests
 import pandas as pd
 import yaml
-from datetime import datetime
-from pathlib import Path
 
 OUTPUT_DIR = Path("nifty_snapshots")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -11,9 +16,13 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 NSE_URL = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
 
 
-def fetch_nifty50():
-    session = requests.Session(impersonate="chrome120")
+def fetch_nifty50() -> tuple[pd.DataFrame, list[str]]:
+    """Fetch current NIFTY 50 index constituents from the NSE website.
 
+    Returns:
+        Tuple containing constituents DataFrame and Yahoo Finance compatible symbol list.
+    """
+    session = requests.Session(impersonate="chrome120")
 
     session.get("https://www.nseindia.com", timeout=15)
     time.sleep(2)
@@ -33,23 +42,19 @@ def fetch_nifty50():
         )
 
     data = response.json()
-
     df = pd.DataFrame(data["data"])
-
-
     df = df[df["series"] == "EQ"].reset_index(drop=True)
 
     symbols = df["symbol"].tolist()
-
     if len(symbols) != 50:
         raise ValueError(f"Expected 50 constituents, got {len(symbols)}")
 
     yahoo_symbols = [s + ".NS" for s in symbols]
-
     return df, yahoo_symbols
 
 
-def save_snapshot(df, yahoo_symbols):
+def save_snapshot(df: pd.DataFrame, yahoo_symbols: list[str]) -> None:
+    """Save constituent snapshot to CSV and YAML in nifty_snapshots directory."""
     ts = datetime.now().strftime("%Y%m%d_%H%M")
 
     csv_path = OUTPUT_DIR / f"nifty50_{ts}.csv"
@@ -60,7 +65,7 @@ def save_snapshot(df, yahoo_symbols):
     yaml_data = {
         "name": "nifty50",
         "timestamp": ts,
-        "symbols": yahoo_symbols
+        "symbols": yahoo_symbols,
     }
 
     with open(yaml_path, "w") as f:

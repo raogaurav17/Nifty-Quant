@@ -3,20 +3,19 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Callable, Dict, List
+from typing import Callable
 
-import numpy as np
 import pandas as pd
 
 from nifty_quant.domain.models import BacktestResult
 from nifty_quant.domain.strategies.base import Strategy
 from nifty_quant.domain.strategies.momentum_12_1 import Momentum12_1Strategy
-from nifty_quant.interfaces.price_repository import PriceRepository
 from nifty_quant.interfaces.execution_model import ExecutionModel
+from nifty_quant.interfaces.price_repository import PriceRepository
 
 
 class BacktestEngine:
-    """Drives the event loop and delegates signals to the Strategy."""
+    """Drives the event loop and delegates signals and allocations to the Strategy."""
 
     def __init__(
         self,
@@ -32,13 +31,24 @@ class BacktestEngine:
 
     def run(
         self,
-        symbols: List[str],
+        symbols: list[str],
         start_date: date,
         end_date: date | None,
         initial_capital: float,
         progress_callback: Callable[[float, str], None] | None = None,
     ) -> BacktestResult:
+        """Run backtest simulation over historical data.
 
+        Args:
+            symbols: Universe of ticker symbols to backtest.
+            start_date: Start date for the backtest period.
+            end_date: Optional end date for the backtest period.
+            initial_capital: Starting portfolio value in currency units.
+            progress_callback: Optional callback reporting progress (0.0 to 1.0) and status.
+
+        Returns:
+            BacktestResult with equity curve, returns, weights, and trade history.
+        """
         if progress_callback:
             progress_callback(0.20, "Fetching historical market data...")
 
@@ -52,7 +62,6 @@ class BacktestEngine:
             progress_callback(0.35, "Aligning price matrix and filtering coverage...")
 
         prices = self._align_prices(price_data)
-
         daily_returns = prices.pct_change().dropna()
 
         if progress_callback:
@@ -76,7 +85,7 @@ class BacktestEngine:
         for dt in costs.index:
             absolute_cost = self.execution_model.apply_costs(
                 notional=initial_capital,
-                turnover=turnover.loc[dt],
+                turnover=float(turnover.loc[dt]),
             )
             costs.loc[dt] = absolute_cost / initial_capital
 
@@ -100,11 +109,11 @@ class BacktestEngine:
         daily_returns: pd.DataFrame,
         progress_callback: Callable[[float, str], None] | None = None,
     ) -> pd.DataFrame:
-        """Schedule rebalance and build weights."""
+        """Schedule rebalances and compute periodic weight allocations."""
         all_dates = daily_returns.index
         min_history = self.strategy.min_history_days
 
-        rebalance_dates: List[pd.Timestamp] = []
+        rebalance_dates: list[pd.Timestamp] = []
         for i, dt in enumerate(all_dates):
             price_loc = prices.index.get_loc(dt)
             if price_loc < min_history:
@@ -114,7 +123,7 @@ class BacktestEngine:
             elif (i - all_dates.get_loc(rebalance_dates[-1])) >= self.rebalance_every:
                 rebalance_dates.append(dt)
 
-        sparse_weights: Dict[pd.Timestamp, pd.Series] = {}
+        sparse_weights: dict[pd.Timestamp, pd.Series] = {}
         total_rebalances = len(rebalance_dates)
         for idx, dt in enumerate(rebalance_dates):
             w = self.strategy.select_and_weight(
@@ -143,10 +152,12 @@ class BacktestEngine:
 
         return weight_df
 
+    def _align_prices(self, price_data: dict[str, pd.DataFrame]) -> pd.DataFrame:
+        """Extract and align adjusted close prices into a single continuous DataFrame."""
+        aligned = [df["adj_close"].rename(symbol) for symbol, df in price_data.items() if "adj_close" in df.columns]
+        if not aligned:
+            return pd.DataFrame()
 
-
-    def _align_prices(self, price_data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
-        aligned = [df["adj_close"].rename(symbol) for symbol, df in price_data.items()]
         df = pd.concat(aligned, axis=1)
 
         # Drop symbols missing >5% data

@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-from typing import List
-
-import numpy as np
 import pandas as pd
 
 from nifty_quant.domain.strategies.base import Strategy
-
-# Trading-day constant
-_DAYS_PER_YEAR = 252
+from nifty_quant.domain.strategies.registry import register
 
 
+@register("momentum_12_1")
 class Momentum12_1Strategy(Strategy):
-    """Cross-sectional 12-1 momentum with inverse-vol position sizing."""
+    """Cross-sectional 12-1 momentum strategy with inverse-volatility position sizing."""
 
     signal_label: str = "MOM SCORE"
     rank_note: str = "Ranked by 12-1 momentum score -- the actual selection signal."
@@ -37,12 +33,18 @@ class Momentum12_1Strategy(Strategy):
         self.cash_buffer = cash_buffer
         self.target_annual_vol = target_annual_vol
 
+    @property
+    def min_history_days(self) -> int:
+        """Minimum historical price bars required before generating signals."""
+        return max(self.lookback_days + 1, self.vol_lookback_days + 1)
+
     def compute_signals(
         self,
         prices: pd.DataFrame,
         daily_returns: pd.DataFrame,
         as_of: pd.Timestamp,
     ) -> dict[str, float]:
+        """Compute 12-1 momentum scores as of a given timestamp."""
         price_history = prices.loc[:as_of]
         end_idx = len(price_history) - 1 - self.skip_recent_days
         start_idx = end_idx - self.lookback_days
@@ -56,16 +58,13 @@ class Momentum12_1Strategy(Strategy):
         momentum_scores = (p_end / p_start) - 1.0
         return momentum_scores.dropna().to_dict()
 
-    @property
-    def min_history_days(self) -> int:
-        return max(self.lookback_days + 1, self.vol_lookback_days + 1)
-
     def select_and_weight(
         self,
         prices: pd.DataFrame,
         daily_returns: pd.DataFrame,
         as_of: pd.Timestamp,
     ) -> pd.Series:
+        """Select top-k momentum symbols and compute inverse-volatility weights."""
         selected = self._momentum_selection(prices=prices, as_of=as_of)
         weights = self._inverse_vol_weights(
             daily_returns=daily_returns,
@@ -74,13 +73,11 @@ class Momentum12_1Strategy(Strategy):
         )
         return weights.reindex(prices.columns, fill_value=0.0)
 
-
-
     def _momentum_selection(
         self,
         prices: pd.DataFrame,
         as_of: pd.Timestamp,
-    ) -> List[str]:
+    ) -> list[str]:
         """Return the top-k tickers ranked by 12-1 momentum."""
         price_history = prices.loc[:as_of]
 
@@ -99,76 +96,3 @@ class Momentum12_1Strategy(Strategy):
         top_k = min(self.top_k, len(momentum_scores))
         return momentum_scores.nlargest(top_k).index.tolist()
 
-    def _inverse_vol_weights(
-        self,
-        daily_returns: pd.DataFrame,
-        symbols: List[str],
-        as_of: pd.Timestamp,
-    ) -> pd.Series:
-        """Weight selected symbols inversely to their realised volatility."""
-        ret_slice = daily_returns.loc[:as_of, symbols].tail(self.vol_lookback_days)
-        vols = ret_slice.std(ddof=1)
-        vols = vols.replace(0.0, np.nan)
-        inv_vol = (1.0 / vols).fillna(0.0)
-
-        total = inv_vol.sum()
-        if total == 0.0:
-            raw_weights = pd.Series(1.0 / len(symbols), index=symbols)
-        else:
-            raw_weights = inv_vol / total
-
-        weights = self._apply_weight_cap(raw_weights)
-        weights = weights * (1.0 - self.cash_buffer)
-        weights = self._apply_vol_target(
-            weights=weights,
-            daily_returns=daily_returns,
-            symbols=symbols,
-            as_of=as_of,
-        )
-        return weights
-
-    def _apply_weight_cap(self, weights: pd.Series) -> pd.Series:
-        """Iteratively redistribute excess weight from capped positions."""
-        w = weights.copy()
-        n = len(w)
-        if n <= 1:
-            return w
-
-        # Prevent degenerate equal-weighting when max_weight <= 1/N
-        effective_cap = max(self.max_weight, 1.5 / n) if self.max_weight <= (1.0 / n) else self.max_weight
-
-        for _ in range(100):
-            over = w > effective_cap
-            under = ~over
-            if not over.any():
-                break
-            excess = (w[over] - effective_cap).sum()
-            w[over] = effective_cap
-            if under.any() and w[under].sum() > 0:
-                w[under] += excess * (w[under] / w[under].sum())
-            else:
-                break
-        return w
-
-    def _apply_vol_target(
-        self,
-        weights: pd.Series,
-        daily_returns: pd.DataFrame,
-        symbols: List[str],
-        as_of: pd.Timestamp,
-    ) -> pd.Series:
-        """Scale weights to hit target_annual_vol; never lever above 1.0."""
-        ret_slice = daily_returns.loc[:as_of, symbols].tail(self.vol_lookback_days)
-        cov = ret_slice.cov()
-
-        w_vec = weights.reindex(symbols, fill_value=0.0).values
-        port_var = float(w_vec @ cov.values @ w_vec)
-
-        if port_var <= 0.0:
-            return weights
-
-        port_daily_vol = np.sqrt(port_var)
-        target_daily_vol = self.target_annual_vol / np.sqrt(_DAYS_PER_YEAR)
-
-        scalar = min(target_daily_vol / port_daily_vol, 1.0)
-        return weights * scalar

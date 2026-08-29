@@ -1,57 +1,75 @@
-"""Strategy registry factory."""
+"""Strategy registry factory and class decorator."""
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Callable, TypeVar
 
 from nifty_quant.domain.strategies.base import Strategy
 
-_REGISTRY: Dict[str, type] = {}
+StrategyClass = TypeVar("StrategyClass", bound=type[Strategy])
+
+_REGISTRY: dict[str, type[Strategy]] = {}
 
 
-def register(name: str):
-    """Class decorator that registers a strategy under ``name``."""
-    def _decorator(cls):
+def register(name: str) -> Callable[[StrategyClass], StrategyClass]:
+    """Class decorator that registers a Strategy subclass under ``name``.
+
+    Args:
+        name: Unique string identifier for the strategy.
+
+    Returns:
+        Decorator function returning the registered strategy class.
+    """
+    def _decorator(cls: StrategyClass) -> StrategyClass:
         _REGISTRY[name] = cls
         return cls
+
     return _decorator
 
 
 def _register_defaults() -> None:
-    """Populate registry with defaults."""
-    from nifty_quant.domain.strategies.momentum_12_1 import Momentum12_1Strategy  # noqa: F401
-    from nifty_quant.domain.strategies.arima import ARIMAStrategy  # noqa: F401
-    from nifty_quant.domain.strategies.low_vol import LowVolatilityStrategy  # noqa: F401
-
-    _REGISTRY.setdefault("momentum_12_1", Momentum12_1Strategy)
-    _REGISTRY.setdefault("arima", ARIMAStrategy)
-    _REGISTRY.setdefault("low_vol", LowVolatilityStrategy)
+    """Ensure all default strategies are imported and registered."""
+    import nifty_quant.domain.strategies.arima  # noqa: F401
+    import nifty_quant.domain.strategies.low_vol  # noqa: F401
+    import nifty_quant.domain.strategies.momentum_12_1  # noqa: F401
 
 
-def build_strategy(cfg: Dict[str, Any]) -> Strategy:
-    """Instantiate a Strategy from a configuration dictionary."""
+def get_strategy_class(name: str) -> type[Strategy]:
+    """Retrieve a registered strategy class by name."""
     _register_defaults()
-
-    name = cfg.get("name")
-    if not name:
-        raise ValueError(
-            "strategy config must contain a 'name' key. "
-            f"Available strategies: {sorted(_REGISTRY)}"
-        )
-
     cls = _REGISTRY.get(str(name))
     if cls is None:
         raise ValueError(
             f"Unknown strategy '{name}'. "
             f"Available strategies: {sorted(_REGISTRY)}"
         )
+    return cls
 
-    # Strip 'name' from kwargs; pass everything else to the constructor
+
+def build_strategy(cfg: dict[str, Any]) -> Strategy:
+    """Instantiate a Strategy from a configuration dictionary.
+
+    Args:
+        cfg: Configuration dictionary with a 'name' key and constructor kwargs.
+
+    Returns:
+        Instantiated Strategy instance.
+    """
+    name = cfg.get("name")
+    if not name:
+        _register_defaults()
+        raise ValueError(
+            "Strategy config must contain a 'name' key. "
+            f"Available strategies: {sorted(_REGISTRY)}"
+        )
+
+    cls = get_strategy_class(str(name))
     kwargs = {k: v for k, v in cfg.items() if k != "name"}
     return cls(**kwargs)
 
 
 def available_strategies() -> list[str]:
-    """Return the list of registered strategy names."""
+    """Return the list of all registered strategy names."""
     _register_defaults()
-    return sorted(_REGISTRY)
+    return sorted(_REGISTRY.keys())
+

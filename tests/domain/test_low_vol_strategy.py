@@ -27,13 +27,26 @@ def sample_market_data():
 
 
 def test_registry_integration():
-    """Test that low_vol is registered and instantiable via registry."""
-    assert "low_vol" in available_strategies()
+    """Test that all strategies are registered and instantiable via registry."""
+    strats = available_strategies()
+    assert "low_vol" in strats
+    assert "momentum_12_1" in strats
+    assert "arima" in strats
 
     strat = build_strategy({"name": "low_vol", "lookback_days": 100, "top_k": 2})
     assert isinstance(strat, LowVolatilityStrategy)
     assert strat.lookback_days == 100
     assert strat.top_k == 2
+
+    strat_mom = build_strategy({"name": "momentum_12_1", "lookback_days": 120})
+    assert strat_mom.lookback_days == 120
+
+    with pytest.raises(ValueError, match="Unknown strategy"):
+        build_strategy({"name": "unknown_strategy_xyz"})
+
+    with pytest.raises(ValueError, match="must contain a 'name' key"):
+        build_strategy({})
+
 
 
 def test_low_vol_selection(sample_market_data):

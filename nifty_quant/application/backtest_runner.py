@@ -1,24 +1,29 @@
+"""Application service for running backtests and constructing snapshots."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Any, Callable
 
-import pandas as pd
+from dateutil.relativedelta import relativedelta
 from omegaconf import DictConfig, OmegaConf
+import pandas as pd
 
 from nifty_quant.domain.backtest.engine import BacktestEngine
-from nifty_quant.domain.strategies.registry import build_strategy
 from nifty_quant.domain.metrics import PerformanceMetrics, calculate_metrics
 from nifty_quant.domain.models import BacktestResult
+from nifty_quant.domain.strategies.base import Strategy
+from nifty_quant.domain.strategies.registry import build_strategy
 from nifty_quant.infrastructure.data.yahoo_price_repository import YahooPriceRepository
 from nifty_quant.infrastructure.execution.india_equities import IndiaEquitiesExecutionModel
-
-from dateutil.relativedelta import relativedelta
 
 
 @dataclass(frozen=True)
 class BacktestSnapshot:
+    """Immutable view model snapshot containing backtest outputs, metrics, and visualization data."""
+
     config: dict[str, Any]
     result: BacktestResult
     metrics: PerformanceMetrics
@@ -31,20 +36,20 @@ class BacktestSnapshot:
     end_date: date | None
     initial_capital: float
     symbols: list[str]
-    strategy: Any = None
+    strategy: Strategy | None = None
 
 
 def _parse_date(value: str | None) -> date | None:
+    """Parse an ISO date string or return None."""
     if value is None:
         return None
     return date.fromisoformat(str(value))
 
 
 def load_config(overrides: list[str] | None = None) -> DictConfig:
-    """Load and compose the Hydra config programmatically."""
+    """Load and compose the Hydra configuration programmatically."""
     from hydra import compose, initialize_config_dir
     from hydra.core.global_hydra import GlobalHydra
-    from pathlib import Path
 
     config_dir = str(Path(__file__).resolve().parents[2] / "conf")
 
@@ -55,6 +60,7 @@ def load_config(overrides: list[str] | None = None) -> DictConfig:
 
 
 def _build_chart_path(equity_curve: pd.Series) -> tuple[str, float, float]:
+    """Generate SVG path definition for the equity curve visualization."""
     if equity_curve.empty:
         return "", 0.0, 0.0
 
@@ -82,6 +88,7 @@ def _build_chart_path(equity_curve: pd.Series) -> tuple[str, float, float]:
 
 
 def _build_holdings(result: BacktestResult) -> list[dict[str, Any]]:
+    """Extract top 10 latest portfolio holdings from the backtest result."""
     if not result.weights:
         return []
 
@@ -102,6 +109,7 @@ def _build_holdings(result: BacktestResult) -> list[dict[str, Any]]:
 
 
 def _build_recent_trades(result: BacktestResult) -> list[dict[str, Any]]:
+    """Extract recent rebalance trade events with non-zero turnover."""
     if result.trades.empty:
         return []
 
@@ -121,12 +129,11 @@ def _build_recent_trades(result: BacktestResult) -> list[dict[str, Any]]:
     ]
 
 
-
 def build_backtest_snapshot(
     cfg: DictConfig | list[str] | None = None,
     progress_callback: Callable[[float, str], None] | None = None,
 ) -> BacktestSnapshot:
-    """Run the backtest and return a rich snapshot."""
+    """Run the backtest pipeline and return a complete snapshot."""
     if progress_callback:
         progress_callback(0.05, "Loading configuration & parameters...")
 
@@ -209,3 +216,4 @@ def build_backtest_snapshot(
         symbols=list(symbols),
         strategy=strategy,
     )
+

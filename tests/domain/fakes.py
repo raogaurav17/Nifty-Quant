@@ -1,25 +1,27 @@
+from __future__ import annotations
+
 from datetime import date
-from typing import Dict, List
 
 import pandas as pd
 
-from nifty_quant.interfaces.price_repository import PriceRepository
 from nifty_quant.interfaces.execution_model import ExecutionModel
+from nifty_quant.interfaces.price_repository import PriceRepository
 
 
 class FakePriceRepository(PriceRepository):
-    def __init__(self, data: Dict[str, pd.DataFrame]):
+    def __init__(self, data: dict[str, pd.DataFrame]) -> None:
         self.data = data
 
     def get_prices(
         self,
-        symbols: List[str],
+        symbols: list[str],
         start_date: date,
         end_date: date | None = None,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         return {s: self.data[s] for s in symbols}
 
 
 class ZeroCostExecutionModel(ExecutionModel):
     def apply_costs(self, notional: float, turnover: float) -> float:
         return 0.0
+

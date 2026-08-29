@@ -1,14 +1,17 @@
-from datetime import date
+"""Price repository implementation fetching market data from Yahoo Finance."""
+
+from __future__ import annotations
+
 from contextlib import contextmanager
+from datetime import date
 import logging
 import time
-from typing import Dict, List
+from typing import Iterator
 
 import pandas as pd
 import yfinance as yf
 
 from nifty_quant.interfaces.price_repository import PriceRepository
-
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +21,20 @@ class YahooPriceRepository(PriceRepository):
 
     def get_prices(
         self,
-        symbols: List[str],
+        symbols: list[str],
         start_date: date,
         end_date: date | None = None,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
+        """Fetch historical price data from Yahoo Finance.
+
+        Args:
+            symbols: List of ticker symbols (e.g. ['RELIANCE.NS', 'TCS.NS']).
+            start_date: Start date for historical data.
+            end_date: Optional end date for historical data.
+
+        Returns:
+            Dictionary mapping symbol string to DataFrame with 'adj_close' and 'volume'.
+        """
         if not symbols:
             return {}
 
@@ -46,12 +59,13 @@ class YahooPriceRepository(PriceRepository):
 
     def _download_with_retry(
         self,
-        symbols: List[str],
+        symbols: list[str],
         start_date: date,
         end_date: date | None,
         max_attempts: int = 3,
         retry_delay_seconds: float = 1.0,
     ) -> pd.DataFrame:
+        """Download price data with retry logic and error suppression."""
         for attempt in range(1, max_attempts + 1):
             try:
                 with self._suppress_yfinance_errors():
@@ -79,7 +93,8 @@ class YahooPriceRepository(PriceRepository):
         return pd.DataFrame()
 
     @contextmanager
-    def _suppress_yfinance_errors(self):
+    def _suppress_yfinance_errors(self) -> Iterator[None]:
+        """Context manager to suppress verbose internal Yahoo Finance logging."""
         yfinance_logger = logging.getLogger("yfinance")
         previous_level = yfinance_logger.level
         yfinance_logger.setLevel(logging.CRITICAL)
@@ -91,12 +106,13 @@ class YahooPriceRepository(PriceRepository):
     def _extract_symbol_data(
         self,
         raw: pd.DataFrame,
-        symbols: List[str],
-    ) -> Dict[str, pd.DataFrame]:
+        symbols: list[str],
+    ) -> dict[str, pd.DataFrame]:
+        """Parse raw multi-index or single-level Yahoo DataFrame into per-symbol DataFrames."""
         if raw.empty:
             return {}
 
-        symbol_to_df: Dict[str, pd.DataFrame] = {}
+        symbol_to_df: dict[str, pd.DataFrame] = {}
 
         if isinstance(raw.columns, pd.MultiIndex):
             for symbol in symbols:
@@ -132,3 +148,4 @@ class YahooPriceRepository(PriceRepository):
                 symbol_to_df[symbol] = out
 
         return symbol_to_df
+

@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 
 
 class ExecutionModel(ABC):
-    """Abstract execution and cost model."""
+    """Abstract interface for trade execution and transaction cost modeling."""
 
     @abstractmethod
     def apply_costs(
@@ -10,5 +12,13 @@ class ExecutionModel(ABC):
         notional: float,
         turnover: float,
     ) -> float:
-        """Returns total execution cost given traded notional."""
+        """Calculate the total execution and friction costs for a trade.
+
+        Args:
+            notional: Portfolio gross capital / notional value.
+            turnover: Portfolio turnover fraction (sum of absolute weight changes).
+
+        Returns:
+            Total friction cost in monetary units.
+        """
         raise NotImplementedError

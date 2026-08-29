@@ -1,12 +1,15 @@
 """Entry point for the Nifty-Quant backtest CLI."""
 
-import time
+from __future__ import annotations
+
 from argparse import ArgumentParser
+import time
 
 from nifty_quant.application.backtest_runner import build_backtest_snapshot
 
 
 def main() -> None:
+    """CLI runner executing backtest and displaying formatted console metrics."""
     parser = ArgumentParser(
         description="Run the Nifty-Quant backtest. Pass Hydra dotlist overrides as args.",
     )
@@ -14,7 +17,7 @@ def main() -> None:
         "overrides",
         nargs="*",
         metavar="KEY=VALUE",
-        help="Hydra dotlist overrides",
+        help="Hydra dotlist overrides (e.g. strategy=low_vol backtest.start_date=2023-01-01)",
     )
     args = parser.parse_args()
 
@@ -45,4 +48,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
