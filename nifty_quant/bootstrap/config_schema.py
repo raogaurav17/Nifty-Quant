@@ -8,11 +8,9 @@ from typing import Any
 
 @dataclass(frozen=True)
 class UniverseConfig:
-    """Configuration for universe constituent symbols."""
+    """Configuration for the survivorship bias-free dynamic universe."""
 
     name: str
-    symbols: list[str] = field(default_factory=list)
-    dynamic: bool = False
     timeline_file: str | None = None
 
 

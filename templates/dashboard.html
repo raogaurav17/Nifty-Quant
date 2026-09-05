@@ -129,17 +129,10 @@
         </div>
       </div>
 
-      <!-- Backtest & Universe Hyperparameters -->
+      <!-- Backtest Hyperparameters -->
       <div class="field-section">
-        <p class="field-section-label">Universe & Backtest Setup</p>
+        <p class="field-section-label">Backtest Setup</p>
         <div class="field-grid">
-          <label style="grid-column: span 2;">
-            <span>Constituent Universe</span>
-            <select name="universe" id="universeSelector">
-              <option value="nifty50_dynamic" {% if form_values.universe == 'nifty50_dynamic' %}selected{% endif %}>NIFTY 50 Dynamic (Survivorship Bias-Free)</option>
-              <option value="nifty50" {% if form_values.universe == 'nifty50' %}selected{% endif %}>NIFTY 50 (Static Snapshot)</option>
-            </select>
-          </label>
           <label>
             <span>Start date</span>
             <input type="date" name="start_date" value="{{ form_values.start_date }}">

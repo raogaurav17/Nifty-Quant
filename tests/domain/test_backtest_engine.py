@@ -3,8 +3,17 @@ import pytest
 import pandas as pd
 
 from nifty_quant.domain.backtest.engine import BacktestEngine
+from nifty_quant.domain.universe.dynamic_universe import DynamicUniverseProvider
 from nifty_quant.interfaces.execution_model import ExecutionModel
 from tests.domain.fakes import FakePriceRepository, ZeroCostExecutionModel
+
+
+_TWO_STOCK_TIMELINE = {
+    "name": "test_two_stock",
+    "baseline_date": "2020-01-05",
+    "baseline_constituents": ["AAA", "BBB"],
+    "reconstitutions": [],
+}
 
 
 @pytest.fixture
@@ -42,7 +51,7 @@ def test_backtest_runs_and_produces_equity_curve(simple_price_data):
     )
 
     result = engine.run(
-        symbols=["AAA", "BBB"],
+        symbols=DynamicUniverseProvider(_TWO_STOCK_TIMELINE),
         start_date=date(2020, 1, 1),
         end_date=None,
         initial_capital=1000.0,
@@ -64,7 +73,7 @@ def test_portfolio_weights_sum_to_one(simple_price_data):
     engine = BacktestEngine(repo, execution)
 
     result = engine.run(
-        symbols=["AAA", "BBB"],
+        symbols=DynamicUniverseProvider(_TWO_STOCK_TIMELINE),
         start_date=date(2020, 1, 1),
         end_date=None,
         initial_capital=1000.0,
@@ -81,7 +90,7 @@ def test_zero_execution_costs(simple_price_data):
     engine = BacktestEngine(repo, execution)
 
     result = engine.run(
-        symbols=["AAA", "BBB"],
+        symbols=DynamicUniverseProvider(_TWO_STOCK_TIMELINE),
         start_date=date(2020, 1, 1),
         end_date=None,
         initial_capital=1000.0,
@@ -119,7 +128,7 @@ def test_execution_costs_are_scaled_to_returns_space(simple_price_data):
     engine = AlternatingWeightEngine(repo, execution)
 
     result = engine.run(
-        symbols=["AAA", "BBB"],
+        symbols=DynamicUniverseProvider(_TWO_STOCK_TIMELINE),
         start_date=date(2020, 1, 1),
         end_date=None,
         initial_capital=1000.0,

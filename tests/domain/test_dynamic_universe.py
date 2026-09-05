@@ -4,7 +4,6 @@ import pytest
 
 from nifty_quant.domain.universe.dynamic_universe import DynamicUniverseProvider
 from nifty_quant.domain.universe.factory import build_universe
-from nifty_quant.domain.universe.static_universe import StaticUniverseProvider
 
 
 TIMELINE_PATH = Path(__file__).resolve().parents[2] / "conf" / "universe" / "nifty50_timeline.json"
@@ -84,15 +83,10 @@ def test_get_all_symbols_union(dynamic_universe):
 
 
 def test_factory_build_universe():
-    static_uni = build_universe({"name": "nifty50", "symbols": ["AAA.NS", "BBB.NS"]})
-    assert isinstance(static_uni, StaticUniverseProvider)
-    assert not static_uni.is_dynamic
-    assert static_uni.get_constituents(date.today()) == ["AAA.NS", "BBB.NS"]
-
     dynamic_uni = build_universe({
         "name": "nifty50_dynamic",
-        "dynamic": True,
         "timeline_file": str(TIMELINE_PATH),
     })
     assert isinstance(dynamic_uni, DynamicUniverseProvider)
     assert dynamic_uni.is_dynamic
+    assert len(dynamic_uni.get_constituents(date(2026, 3, 15))) == 50

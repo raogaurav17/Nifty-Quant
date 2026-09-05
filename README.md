@@ -19,7 +19,7 @@ A systematic, **multi-strategy** backtesting framework for the NSE NIFTY 50 univ
 - **Real-Time Progress Streaming** — WebSockets (`/ws/backtest/{job_id}`) and REST API (`/api/backtest/...`) stream live backtest progress bars & status updates.
 - **Inverse Volatility Sizing** — positions balanced by 60-day rolling σ, capped at 20% per stock with volatility targeting.
 - **Realistic Cost Modelling** — brokerage + slippage applied at every rebalance step.
-- **NIFTY 50 Universe** — India's 50 largest listed companies, available via dynamic timeline or static snapshot.
+- **NIFTY 50 Universe** — India's 50 largest listed companies, reconstructed dynamically across time (survivorship bias-free).
 - **Hydra Configuration** — every parameter (strategy, universe, dates, capital, costs) overrideable from CLI or web UI.
 - **Web Dashboard** — FastAPI + Jinja2 + WebSocket interface with dynamic strategy and universe selectors and dedicated parameter subwindows.
 
@@ -136,7 +136,7 @@ uv sync
 
 ```bash
 # Run Momentum 12-1 with Survivorship Bias-Free Dynamic Universe
-uv run python main.py universe=nifty50_dynamic strategy=momentum_12_1
+uv run python main.py strategy=momentum_12_1
 
 # Run Low-Volatility strategy
 uv run python main.py strategy=low_vol
@@ -144,8 +144,8 @@ uv run python main.py strategy=low_vol
 # Run ARIMA with custom params
 uv run python main.py strategy=arima strategy.arima_p=3 strategy.top_k=5
 
-# Override universe, dates, and capital
-uv run python main.py universe=nifty50_dynamic backtest.start_date=2020-01-01 backtest.initial_capital=500000
+# Override dates and capital
+uv run python main.py backtest.start_date=2020-01-01 backtest.initial_capital=500000
 ```
 
 ### Launch the web dashboard
@@ -172,10 +172,10 @@ Nifty-Quant/
 │   │   ├── arima.yaml                 # AR/ARIMA strategy config
 │   │   ├── low_vol.yaml               # Low-Volatility strategy config
 │   │   └── momentum_12_1.yaml         # Momentum strategy config
-│   └── universe/
-│       ├── nifty50.yaml               # Static NIFTY 50 symbol list
-│       ├── nifty50_dynamic.yaml       # Dynamic universe config (survivorship bias-free)
-│       └── nifty50_timeline.json      # Verified historical reconstitutions (2019-2026)
+│   ├── universe/
+│   │   ├── nifty50.yaml               # Dynamic universe config (survivorship bias-free)
+│   │   ├── nifty50_dynamic.yaml       # Alias config (same timeline, different name)
+│   │   └── nifty50_timeline.json      # Verified historical reconstitutions (2019-2026)
 ├── nifty_quant/
 │   ├── main.py                        # CLI entry point
 │   ├── application/
@@ -192,8 +192,7 @@ Nifty-Quant/
 │   │   │   └── registry.py            # Factory decorator: name → Strategy instance
 │   │   ├── universe/
 │   │   │   ├── dynamic_universe.py    # Time-aware constituent resolver with interval bisection
-│   │   │   ├── static_universe.py     # Static snapshot provider
-│   │   │   └── factory.py             # Universe provider builder
+│   │   │   └── factory.py             # Universe provider builder (always dynamic)
 │   │   ├── metrics.py                 # Performance metrics
 │   │   └── models.py                  # BacktestResult dataclass
 │   ├── infrastructure/
@@ -265,23 +264,24 @@ defaults:
   - strategy: low_vol   # ← change to: momentum_12_1 or arima
   - portfolio: inverse_vol
   - backtest: monthly
-  - universe: nifty50_dynamic  # ← nifty50_dynamic (survivorship-free) or nifty50 (static)
+  - universe: nifty50   # ← survivorship bias-free dynamic universe
   - data: yahoo
   - execution: india_equities
 ```
 
-### `conf/universe/nifty50_dynamic.yaml` — survivorship bias-free universe
+### `conf/universe/nifty50.yaml` — survivorship bias-free universe
 
 ```yaml
-name: nifty50_dynamic
-dynamic: true
+name: nifty50
 timeline_file: conf/universe/nifty50_timeline.json
 ```
 
+Every universe configuration is dynamic by default. There is no static symbols list — all backtests are survivorship bias-free.
+
 ```bash
-# Toggle universe directly from CLI
-uv run python main.py universe=nifty50_dynamic
+# Both configs point to the same timeline; nifty50_dynamic is an alias
 uv run python main.py universe=nifty50
+uv run python main.py universe=nifty50_dynamic
 ```
 
 ### `conf/backtest/monthly.yaml`

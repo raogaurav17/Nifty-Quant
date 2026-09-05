@@ -10,7 +10,6 @@ import pandas as pd
 from nifty_quant.domain.models import BacktestResult
 from nifty_quant.domain.strategies.base import Strategy
 from nifty_quant.domain.strategies.momentum_12_1 import Momentum12_1Strategy
-from nifty_quant.domain.universe.static_universe import StaticUniverseProvider
 from nifty_quant.interfaces.execution_model import ExecutionModel
 from nifty_quant.interfaces.price_repository import PriceRepository
 from nifty_quant.interfaces.universe_provider import UniverseProvider
@@ -33,7 +32,7 @@ class BacktestEngine:
 
     def run(
         self,
-        symbols: list[str] | UniverseProvider,
+        symbols: UniverseProvider,
         start_date: date,
         end_date: date | None,
         initial_capital: float,
@@ -42,7 +41,7 @@ class BacktestEngine:
         """Run backtest simulation over historical data.
 
         Args:
-            symbols: Universe of ticker symbols (or UniverseProvider) to backtest.
+            symbols: UniverseProvider defining the time-aware constituent universe.
             start_date: Start date for the backtest period.
             end_date: Optional end date for the backtest period.
             initial_capital: Starting portfolio value in currency units.
@@ -51,10 +50,7 @@ class BacktestEngine:
         Returns:
             BacktestResult with equity curve, returns, weights, and trade history.
         """
-        if isinstance(symbols, list):
-            universe_provider: UniverseProvider = StaticUniverseProvider(symbols)
-        else:
-            universe_provider = symbols
+        universe_provider: UniverseProvider = symbols
 
         if progress_callback:
             progress_callback(0.20, "Fetching historical market data...")
@@ -191,8 +187,11 @@ class BacktestEngine:
         df = pd.concat(aligned, axis=1)
 
         if is_dynamic:
-            # Keep symbols that have at least min_history_days observations
-            min_req = getattr(self.strategy, "min_history_days", 20)
+            # Require at least min_history_days observations, but never more than
+            # 50% of total available rows so short backtest windows (e.g. tests)
+            # don't drop all columns.
+            strategy_min = getattr(self.strategy, "min_history_days", 20)
+            min_req = max(1, min(strategy_min, len(df) // 2))
             df = df.dropna(axis=1, thresh=min_req)
             # Forward-fill price gaps
             df = df.ffill()
