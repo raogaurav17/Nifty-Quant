@@ -1,0 +1,4 @@
+name: nifty50_dynamic
+dynamic: true
+timeline_file: conf/universe/nifty50_timeline.json
+symbols: []

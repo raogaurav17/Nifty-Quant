@@ -16,9 +16,11 @@ from nifty_quant.domain.metrics import PerformanceMetrics, calculate_metrics
 from nifty_quant.domain.models import BacktestResult
 from nifty_quant.domain.strategies.base import Strategy
 from nifty_quant.domain.strategies.registry import build_strategy
+from nifty_quant.domain.universe.factory import build_universe
 from nifty_quant.infrastructure.data.cached_price_repository import CachedPriceRepository
 from nifty_quant.infrastructure.data.yahoo_price_repository import YahooPriceRepository
 from nifty_quant.infrastructure.execution.india_equities import IndiaEquitiesExecutionModel
+from nifty_quant.interfaces.universe_provider import UniverseProvider
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,7 @@ class BacktestSnapshot:
     initial_capital: float
     symbols: list[str]
     strategy: Strategy | None = None
+    universe: UniverseProvider | None = None
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -147,13 +150,12 @@ def build_backtest_snapshot(
     data_cfg = config.get("data", {})
     universe_cfg = config.get("universe", {})
     provider = str(data_cfg.get("provider", ""))
-    symbols = universe_cfg.get("symbols", [])
     strategy_cfg = config.get("strategy", {})
 
     if provider != "yahoo":
         raise ValueError(f"Unsupported data provider: {provider}")
-    if not symbols:
-        raise ValueError("universe.symbols must contain at least one symbol")
+
+    universe = build_universe(universe_cfg)
 
     execution_cfg = config.get("execution", {})
     execution_model = IndiaEquitiesExecutionModel(
@@ -201,8 +203,12 @@ def build_backtest_snapshot(
     initial_capital = float(backtest_cfg["initial_capital"])
     fetch_start = start_date - relativedelta(months=14)
 
+    fetch_symbols = universe.get_all_symbols(start_date=fetch_start, end_date=end_date)
+    if not fetch_symbols:
+        raise ValueError("Universe provider resolved no symbols for the backtest period.")
+
     result = engine.run(
-        symbols=symbols,
+        symbols=universe,
         start_date=fetch_start,
         end_date=end_date,
         initial_capital=initial_capital,
@@ -227,7 +233,8 @@ def build_backtest_snapshot(
         start_date=start_date,
         end_date=end_date,
         initial_capital=initial_capital,
-        symbols=list(symbols),
+        symbols=list(fetch_symbols),
         strategy=strategy,
+        universe=universe,
     )
 

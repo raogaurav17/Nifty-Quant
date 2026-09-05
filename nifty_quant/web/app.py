@@ -50,6 +50,7 @@ def _dict_to_overrides(params: dict[str, Any]) -> list[str]:
     overrides.append(f"strategy={strategy}")
 
     for key, qp in [
+        ("universe",                 "universe"),
         ("backtest.start_date",      "start_date"),
         ("backtest.end_date",        "end_date"),
         ("backtest.initial_capital", "initial_capital"),
@@ -91,8 +92,10 @@ def _query_values(request: Request, base_cfg: dict[str, Any]) -> dict[str, Any]:
     def _p(qp: str, fallback: Any) -> Any:
         return params.get(qp) or fallback
 
+    uni = base_cfg.get("universe", {})
     return {
         "strategy": _p("strategy", strat.get("name", "momentum_12_1")),
+        "universe": _p("universe", uni.get("name", "nifty50_dynamic")),
         "start_date": _p("start_date", bt.get("start_date", "")),
         "end_date": _p("end_date", bt.get("end_date") or ""),
         "initial_capital": _p("initial_capital", bt.get("initial_capital", 1_000_000)),

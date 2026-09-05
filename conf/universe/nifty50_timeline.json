@@ -1,0 +1,136 @@
+{
+  "name": "nifty50",
+  "baseline_date": "2026-03-15",
+  "baseline_constituents": [
+    "LT.NS",
+    "HDFCBANK.NS",
+    "RELIANCE.NS",
+    "ICICIBANK.NS",
+    "M&M.NS",
+    "SBIN.NS",
+    "BHARTIARTL.NS",
+    "ETERNAL.NS",
+    "MARUTI.NS",
+    "KOTAKBANK.NS",
+    "AXISBANK.NS",
+    "NTPC.NS",
+    "HINDALCO.NS",
+    "COALINDIA.NS",
+    "INFY.NS",
+    "BEL.NS",
+    "TATASTEEL.NS",
+    "ITC.NS",
+    "ULTRACEMCO.NS",
+    "INDIGO.NS",
+    "POWERGRID.NS",
+    "SHRIRAMFIN.NS",
+    "TCS.NS",
+    "BAJFINANCE.NS",
+    "EICHERMOT.NS",
+    "TMPV.NS",
+    "HINDUNILVR.NS",
+    "ONGC.NS",
+    "SUNPHARMA.NS",
+    "TRENT.NS",
+    "BAJAJ-AUTO.NS",
+    "ADANIPORTS.NS",
+    "TITAN.NS",
+    "GRASIM.NS",
+    "MAXHEALTH.NS",
+    "JIOFIN.NS",
+    "TATACONSUM.NS",
+    "APOLLOHOSP.NS",
+    "HCLTECH.NS",
+    "JSWSTEEL.NS",
+    "WIPRO.NS",
+    "BAJAJFINSV.NS",
+    "ADANIENT.NS",
+    "ASIANPAINT.NS",
+    "NESTLEIND.NS",
+    "DRREDDY.NS",
+    "HDFCLIFE.NS",
+    "SBILIFE.NS",
+    "CIPLA.NS",
+    "TECHM.NS"
+  ],
+  "reconstitutions": [
+    {
+      "effective_date": "2025-09-30",
+      "added": ["INDIGO.NS", "MAXHEALTH.NS"],
+      "removed": ["HEROMOTOCO.NS", "INDUSINDBK.NS"],
+      "reason": "Semi-annual index review"
+    },
+    {
+      "effective_date": "2025-03-31",
+      "added": ["ETERNAL.NS", "JIOFIN.NS"],
+      "removed": ["BPCL.NS", "BRITANNIA.NS"],
+      "reason": "Semi-annual index review"
+    },
+    {
+      "effective_date": "2024-09-30",
+      "added": ["BEL.NS", "TRENT.NS"],
+      "removed": ["DIVISLAB.NS", "LTIM.NS"],
+      "reason": "Semi-annual index review"
+    },
+    {
+      "effective_date": "2024-03-28",
+      "added": ["SHRIRAMFIN.NS"],
+      "removed": ["UPL.NS"],
+      "reason": "Semi-annual index review"
+    },
+    {
+      "effective_date": "2023-07-13",
+      "added": ["LTIM.NS"],
+      "removed": ["HDFC.NS"],
+      "reason": "Ad-hoc corporate action: HDFC Ltd merger with HDFC Bank"
+    },
+    {
+      "effective_date": "2022-09-30",
+      "added": ["ADANIENT.NS"],
+      "removed": ["SHREECEM.NS"],
+      "reason": "Semi-annual index review"
+    },
+    {
+      "effective_date": "2022-03-31",
+      "added": ["APOLLOHOSP.NS"],
+      "removed": ["IOC.NS"],
+      "reason": "Semi-annual index review"
+    },
+    {
+      "effective_date": "2021-03-31",
+      "added": ["TATACONSUM.NS"],
+      "removed": ["GAIL.NS"],
+      "reason": "Semi-annual index review"
+    },
+    {
+      "effective_date": "2020-09-25",
+      "added": ["DIVISLAB.NS", "SBILIFE.NS"],
+      "removed": ["INDUSTOWER.NS", "ZEEL.NS"],
+      "reason": "Semi-annual index review"
+    },
+    {
+      "effective_date": "2020-07-31",
+      "added": ["HDFCLIFE.NS"],
+      "removed": ["VEDL.NS"],
+      "reason": "Ad-hoc corporate action: proposed delisting of Vedanta"
+    },
+    {
+      "effective_date": "2020-03-27",
+      "added": ["SHREECEM.NS"],
+      "removed": ["YESBANK.NS"],
+      "reason": "Ad-hoc replacement: Yes Bank restructuring"
+    },
+    {
+      "effective_date": "2019-09-27",
+      "added": ["NESTLEIND.NS"],
+      "removed": ["IBULHSGFIN.NS"],
+      "reason": "Semi-annual index review"
+    },
+    {
+      "effective_date": "2019-03-29",
+      "added": ["BRITANNIA.NS"],
+      "removed": ["HINDPETRO.NS"],
+      "reason": "Semi-annual index review"
+    }
+  ]
+}

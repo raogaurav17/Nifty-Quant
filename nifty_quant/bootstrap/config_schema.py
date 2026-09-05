@@ -11,7 +11,9 @@ class UniverseConfig:
     """Configuration for universe constituent symbols."""
 
     name: str
-    symbols: list[str]
+    symbols: list[str] = field(default_factory=list)
+    dynamic: bool = False
+    timeline_file: str | None = None
 
 
 @dataclass(frozen=True)

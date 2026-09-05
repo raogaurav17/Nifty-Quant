@@ -179,7 +179,12 @@ def main() -> None:
     print("  PORTFOLIO SUMMARY")
     print("-" * 44)
     print(f"  Strategy          : {strategy_name}")
-    print(f"  Universe          : {len(universe_cfg.get('symbols', []))} symbols")
+    if snapshot.universe and snapshot.universe.is_dynamic:
+        active_today = len(snapshot.universe.get_constituents(date.today()))
+        print(f"  Universe          : {snapshot.universe.name} [Survivorship Bias-Free]")
+        print(f"  Constituents      : {active_today} active today ({len(snapshot.symbols)} total historical in period)")
+    else:
+        print(f"  Universe          : {len(snapshot.symbols)} symbols (static snapshot)")
     print(f"  Initial capital   : Rs {initial_capital:,.0f}")
     print(f"  Stocks selected   : {len(holdings)}")
     print(f"  Capital deployed  : {total_invested:.1%}  (remainder is cash buffer + vol scaling)")

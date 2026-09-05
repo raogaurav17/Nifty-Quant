@@ -10,8 +10,10 @@ import pandas as pd
 from nifty_quant.domain.models import BacktestResult
 from nifty_quant.domain.strategies.base import Strategy
 from nifty_quant.domain.strategies.momentum_12_1 import Momentum12_1Strategy
+from nifty_quant.domain.universe.static_universe import StaticUniverseProvider
 from nifty_quant.interfaces.execution_model import ExecutionModel
 from nifty_quant.interfaces.price_repository import PriceRepository
+from nifty_quant.interfaces.universe_provider import UniverseProvider
 
 
 class BacktestEngine:
@@ -31,7 +33,7 @@ class BacktestEngine:
 
     def run(
         self,
-        symbols: list[str],
+        symbols: list[str] | UniverseProvider,
         start_date: date,
         end_date: date | None,
         initial_capital: float,
@@ -40,7 +42,7 @@ class BacktestEngine:
         """Run backtest simulation over historical data.
 
         Args:
-            symbols: Universe of ticker symbols to backtest.
+            symbols: Universe of ticker symbols (or UniverseProvider) to backtest.
             start_date: Start date for the backtest period.
             end_date: Optional end date for the backtest period.
             initial_capital: Starting portfolio value in currency units.
@@ -49,11 +51,21 @@ class BacktestEngine:
         Returns:
             BacktestResult with equity curve, returns, weights, and trade history.
         """
+        if isinstance(symbols, list):
+            universe_provider: UniverseProvider = StaticUniverseProvider(symbols)
+        else:
+            universe_provider = symbols
+
         if progress_callback:
             progress_callback(0.20, "Fetching historical market data...")
 
+        query_symbols = universe_provider.get_all_symbols(
+            start_date=start_date,
+            end_date=end_date,
+        )
+
         price_data = self.price_repo.get_prices(
-            symbols=symbols,
+            symbols=query_symbols,
             start_date=start_date,
             end_date=end_date,
         )
@@ -61,8 +73,11 @@ class BacktestEngine:
         if progress_callback:
             progress_callback(0.35, "Aligning price matrix and filtering coverage...")
 
-        prices = self._align_prices(price_data)
-        daily_returns = prices.pct_change().dropna()
+        prices = self._align_prices(price_data, is_dynamic=universe_provider.is_dynamic)
+        if universe_provider.is_dynamic:
+            daily_returns = prices.pct_change().dropna(how="all")
+        else:
+            daily_returns = prices.pct_change().dropna()
 
         if progress_callback:
             progress_callback(0.45, "Calculating strategy signals & allocations...")
@@ -70,6 +85,7 @@ class BacktestEngine:
         weights = self._build_weights(
             prices=prices,
             daily_returns=daily_returns,
+            universe=universe_provider,
             progress_callback=progress_callback,
         )
 
@@ -107,6 +123,7 @@ class BacktestEngine:
         self,
         prices: pd.DataFrame,
         daily_returns: pd.DataFrame,
+        universe: UniverseProvider,
         progress_callback: Callable[[float, str], None] | None = None,
     ) -> pd.DataFrame:
         """Schedule rebalances and compute periodic weight allocations."""
@@ -126,9 +143,17 @@ class BacktestEngine:
         sparse_weights: dict[pd.Timestamp, pd.Series] = {}
         total_rebalances = len(rebalance_dates)
         for idx, dt in enumerate(rebalance_dates):
+            active_symbols = universe.get_constituents(dt)
+            eligible_symbols = [s for s in active_symbols if s in prices.columns]
+            if not eligible_symbols:
+                eligible_symbols = list(prices.columns)
+
+            prices_sub = prices.loc[:, eligible_symbols]
+            returns_sub = daily_returns.loc[:, eligible_symbols]
+
             w = self.strategy.select_and_weight(
-                prices=prices,
-                daily_returns=daily_returns,
+                prices=prices_sub,
+                daily_returns=returns_sub,
                 as_of=dt,
             )
             sparse_weights[dt] = w
@@ -146,13 +171,18 @@ class BacktestEngine:
             )
 
         weight_df = pd.DataFrame(sparse_weights).T
+        weight_df = weight_df.reindex(columns=prices.columns).fillna(0.0)
         weight_df = weight_df.reindex(all_dates)
         weight_df = weight_df.ffill()
         weight_df = weight_df.fillna(0.0)
 
         return weight_df
 
-    def _align_prices(self, price_data: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def _align_prices(
+        self,
+        price_data: dict[str, pd.DataFrame],
+        is_dynamic: bool = False,
+    ) -> pd.DataFrame:
         """Extract and align adjusted close prices into a single continuous DataFrame."""
         aligned = [df["adj_close"].rename(symbol) for symbol, df in price_data.items() if "adj_close" in df.columns]
         if not aligned:
@@ -160,16 +190,23 @@ class BacktestEngine:
 
         df = pd.concat(aligned, axis=1)
 
-        # Drop symbols missing >5% data
-        min_obs = int(len(df) * 0.95)
-        df = df.dropna(axis=1, thresh=min_obs)
-
-        # Forward-fill gaps
-        df = df.ffill()
-
-        # Drop dates with low coverage
-        top_k = getattr(self.strategy, "top_k", 10)
-        min_required_symbols = min(top_k, len(df.columns))
-        df = df.dropna(thresh=min_required_symbols)
+        if is_dynamic:
+            # Keep symbols that have at least min_history_days observations
+            min_req = getattr(self.strategy, "min_history_days", 20)
+            df = df.dropna(axis=1, thresh=min_req)
+            # Forward-fill price gaps
+            df = df.ffill()
+            # Drop dates where all symbols are NaN
+            df = df.dropna(how="all")
+        else:
+            # Drop symbols missing >5% data
+            min_obs = int(len(df) * 0.95)
+            df = df.dropna(axis=1, thresh=min_obs)
+            # Forward-fill gaps
+            df = df.ffill()
+            # Drop dates with low coverage
+            top_k = getattr(self.strategy, "top_k", 10)
+            min_required_symbols = min(top_k, len(df.columns))
+            df = df.dropna(thresh=min_required_symbols)
 
         return df
