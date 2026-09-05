@@ -29,3 +29,6 @@ where = ["."]
 [tool.pytest.ini_options]
 addopts = "-p no:hydra"
 testpaths = ["tests"]
+
+[tool.vercel]
+entrypoint = "nifty_quant.web.app:app"

@@ -10,6 +10,7 @@ A systematic, **multi-strategy** backtesting framework for the NSE NIFTY 50 univ
 ## Features
 
 - **Strategy Plugin System** — each strategy lives in its own file; swap with a single CLI flag or dropdown selector.
+- **Survivorship Bias-Free Dynamic Universe** — tracks official semi-annual NSE reconstitutions and corporate actions (2019–2026). On each rebalance date, evaluates and trades only stocks that were genuine index constituents on that date.
 - **Low-Volatility Anomaly** — ranks universe constituents by trailing realized volatility and weights top-K lowest-risk stocks.
 - **Momentum 12-1** — classic cross-sectional momentum with inverse-vol sizing and recent-month skip.
 - **AR(p) / ARIMA Signal** — vectorised autoregressive return forecast (batched numpy OLS, ~20,000× faster than MLE).
@@ -18,9 +19,9 @@ A systematic, **multi-strategy** backtesting framework for the NSE NIFTY 50 univ
 - **Real-Time Progress Streaming** — WebSockets (`/ws/backtest/{job_id}`) and REST API (`/api/backtest/...`) stream live backtest progress bars & status updates.
 - **Inverse Volatility Sizing** — positions balanced by 60-day rolling σ, capped at 20% per stock with volatility targeting.
 - **Realistic Cost Modelling** — brokerage + slippage applied at every rebalance step.
-- **NIFTY 50 Universe** — India's 50 largest listed companies.
-- **Hydra Configuration** — every parameter (strategy, dates, capital, costs) overrideable from CLI or web UI.
-- **Web Dashboard** — FastAPI + Jinja2 + WebSocket interface with dynamic strategy selector dropdown and dedicated parameter subwindows.
+- **NIFTY 50 Universe** — India's 50 largest listed companies, available via dynamic timeline or static snapshot.
+- **Hydra Configuration** — every parameter (strategy, universe, dates, capital, costs) overrideable from CLI or web UI.
+- **Web Dashboard** — FastAPI + Jinja2 + WebSocket interface with dynamic strategy and universe selectors and dedicated parameter subwindows.
 
 ---
 
@@ -134,17 +135,17 @@ uv sync
 ### Run a backtest
 
 ```bash
+# Run Momentum 12-1 with Survivorship Bias-Free Dynamic Universe
+uv run python main.py universe=nifty50_dynamic strategy=momentum_12_1
+
 # Run Low-Volatility strategy
 uv run python main.py strategy=low_vol
-
-# Switch to Momentum 12-1
-uv run python main.py strategy=momentum_12_1
 
 # Run ARIMA with custom params
 uv run python main.py strategy=arima strategy.arima_p=3 strategy.top_k=5
 
-# Override dates and capital (any strategy)
-uv run python main.py backtest.start_date=2020-01-01 backtest.initial_capital=500000
+# Override universe, dates, and capital
+uv run python main.py universe=nifty50_dynamic backtest.start_date=2020-01-01 backtest.initial_capital=500000
 ```
 
 ### Launch the web dashboard
@@ -171,7 +172,10 @@ Nifty-Quant/
 │   │   ├── arima.yaml                 # AR/ARIMA strategy config
 │   │   ├── low_vol.yaml               # Low-Volatility strategy config
 │   │   └── momentum_12_1.yaml         # Momentum strategy config
-│   └── universe/nifty50.yaml          # NIFTY 50 symbol list
+│   └── universe/
+│       ├── nifty50.yaml               # Static NIFTY 50 symbol list
+│       ├── nifty50_dynamic.yaml       # Dynamic universe config (survivorship bias-free)
+│       └── nifty50_timeline.json      # Verified historical reconstitutions (2019-2026)
 ├── nifty_quant/
 │   ├── main.py                        # CLI entry point
 │   ├── application/
@@ -179,13 +183,17 @@ Nifty-Quant/
 │   │   └── job_manager.py             # Async job queue & worker thread pool
 │   ├── bootstrap/config_schema.py     # Config validation
 │   ├── domain/
-│   │   ├── backtest/engine.py         # Strategy-agnostic engine with progress callbacks
+│   │   ├── backtest/engine.py         # Strategy-agnostic engine with dynamic constituent filtering
 │   │   ├── strategies/
 │   │   │   ├── base.py                # Strategy ABC
 │   │   │   ├── arima.py               # AR/ARIMA implementation
 │   │   │   ├── low_vol.py             # Low-Volatility implementation
 │   │   │   ├── momentum_12_1.py       # Momentum 12-1 implementation
 │   │   │   └── registry.py            # Factory decorator: name → Strategy instance
+│   │   ├── universe/
+│   │   │   ├── dynamic_universe.py    # Time-aware constituent resolver with interval bisection
+│   │   │   ├── static_universe.py     # Static snapshot provider
+│   │   │   └── factory.py             # Universe provider builder
 │   │   ├── metrics.py                 # Performance metrics
 │   │   └── models.py                  # BacktestResult dataclass
 │   ├── infrastructure/
@@ -195,7 +203,10 @@ Nifty-Quant/
 │   │   │   ├── local_price_store.py       # Consolidated per-symbol storage manager
 │   │   │   └── yahoo_price_repository.py  # Upstream Yahoo Finance client
 │   │   └── execution/india_equities.py
-│   ├── interfaces/                    # Abstract interfaces (DI boundaries)
+│   ├── interfaces/
+│   │   ├── execution_model.py         # Execution cost interface
+│   │   ├── price_repository.py        # Historical price access interface
+│   │   └── universe_provider.py       # Universe constituent interface
 │   └── web/app.py                     # FastAPI dashboard, REST & WebSocket API
 ├── data/                              # Local data storage (gitignored)
 │   └── cache/
@@ -254,9 +265,23 @@ defaults:
   - strategy: low_vol   # ← change to: momentum_12_1 or arima
   - portfolio: inverse_vol
   - backtest: monthly
-  - universe: nifty50
+  - universe: nifty50_dynamic  # ← nifty50_dynamic (survivorship-free) or nifty50 (static)
   - data: yahoo
   - execution: india_equities
+```
+
+### `conf/universe/nifty50_dynamic.yaml` — survivorship bias-free universe
+
+```yaml
+name: nifty50_dynamic
+dynamic: true
+timeline_file: conf/universe/nifty50_timeline.json
+```
+
+```bash
+# Toggle universe directly from CLI
+uv run python main.py universe=nifty50_dynamic
+uv run python main.py universe=nifty50
 ```
 
 ### `conf/backtest/monthly.yaml`
@@ -310,18 +335,20 @@ Web Dashboard (FastAPI / WebSockets) / CLI
     ├── POST /api/backtest/run
     │      └── JobManager.submit_job() [ThreadPoolExecutor]
     │              └── build_backtest_snapshot(DictConfig, progress_callback)
-    │                      ├── build_strategy(cfg)       ← registry factory
-    │                      │       └── Strategy.select_and_weight()
+    │                      ├── build_universe(universe_cfg) ← Dynamic or Static UniverseProvider
+    │                      ├── build_strategy(cfg)          ← registry factory
+    │                      │       └── Strategy.select_and_weight() [evaluated on active constituents]
     │                      └── BacktestEngine.run(progress_callback)
-    │                              ├── CachedPriceRepository  ← interval math & local cache
+    │                              ├── UniverseProvider     ← time-aware constituent membership
+    │                              ├── CachedPriceRepository ← interval math & local cache
     │                              │       ├── IntervalRegistry (intervals.json)
     │                              │       ├── LocalPriceStore  (prices/*.csv)
     │                              │       └── YahooPriceRepository (upstream fallback)
-    │                              └── ExecutionModel         ← transaction costs
+    │                              └── ExecutionModel       ← transaction costs & slippage
     └── WebSocket /ws/backtest/{job_id} ← streams real-time status & progress %
 ```
 
-The engine is **strategy-agnostic** — it schedules rebalances, applies costs, and builds the equity curve. All signal generation and sizing live inside the injected `Strategy` object, while compute runs asynchronously off the main ASGI event loop.
+The engine is **strategy-agnostic** — it schedules rebalances, dynamically filters eligible stocks based on index reconstitution on each date, applies costs, and builds the equity curve. All signal generation and sizing live inside the injected `Strategy` object, while compute runs asynchronously off the main ASGI event loop.
 
 ---
 
@@ -366,8 +393,7 @@ uv run python benchmark_fit_time.py
 
 ## Known Limitations
 
-- **Survivorship bias** — uses today's NIFTY 50 constituents; historical additions/removals are not modelled.
-- **Data quality** — relies on Yahoo Finance, which occasionally has gaps or adjusted-price errors.
+- **Data quality** — relies on Yahoo Finance, which occasionally has gaps or adjusted-price errors for delisted/merged symbols.
 - **Transaction costs** — computed on initial capital, not current portfolio value (understates costs as equity grows).
 
 ---
