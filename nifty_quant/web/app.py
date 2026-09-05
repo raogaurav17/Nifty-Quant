@@ -95,7 +95,7 @@ def _query_values(request: Request, base_cfg: dict[str, Any]) -> dict[str, Any]:
     uni = base_cfg.get("universe", {})
     return {
         "strategy": _p("strategy", strat.get("name", "momentum_12_1")),
-        "universe": _p("universe", uni.get("name", "nifty50_dynamic")),
+        "universe": _p("universe", uni.get("name", "nifty50")),
         "start_date": _p("start_date", bt.get("start_date", "")),
         "end_date": _p("end_date", bt.get("end_date") or ""),
         "initial_capital": _p("initial_capital", bt.get("initial_capital", 1_000_000)),
@@ -199,5 +199,4 @@ def dashboard(request: Request) -> HTMLResponse:
         "holdings": [],
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
-
 

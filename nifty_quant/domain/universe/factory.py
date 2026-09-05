@@ -26,5 +26,5 @@ def build_universe(universe_cfg: dict[str, Any] | UniverseConfig) -> UniversePro
     timeline_file = cfg_dict.get("timeline_file") or "conf/universe/nifty50_timeline.json"
     return DynamicUniverseProvider(
         timeline_source=timeline_file,
-        name=str(cfg_dict.get("name", "nifty50_dynamic")),
+        name=str(cfg_dict.get("name", "nifty50")),
     )
