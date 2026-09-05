@@ -1,5 +1,5 @@
 provider: yahoo
 adjusted_prices: true
 use_cache: true
-cache_dir: "cache_data"
+cache_dir: "/tmp/cache_data"
 force_refresh: false
