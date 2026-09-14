@@ -97,3 +97,27 @@ def test_cached_repo_batch_symbol_gaps(tmp_path: Path):
     assert set(res.keys()) == {"AAA.NS", "BBB.NS"}
     assert len(upstream.call_history) == 1
     assert set(upstream.call_history[0]["symbols"]) == {"AAA.NS", "BBB.NS"}
+
+
+def test_cached_repo_retries_empty_upstream_response(tmp_path: Path):
+    upstream = Mock(spec=PriceRepository)
+    upstream.get_prices.return_value = {}
+    cached = CachedPriceRepository(upstream=upstream, cache_dir=tmp_path)
+
+    query = {"symbols": ["AAA.NS"], "start_date": date(2023, 1, 1), "end_date": date(2023, 1, 5)}
+    assert cached.get_prices(**query) == {}
+    assert cached.get_prices(**query) == {}
+
+    assert upstream.get_prices.call_count == 2
+
+
+def test_cached_repo_retries_failed_upstream_response(tmp_path: Path):
+    upstream = Mock(spec=PriceRepository)
+    upstream.get_prices.side_effect = RuntimeError("upstream unavailable")
+    cached = CachedPriceRepository(upstream=upstream, cache_dir=tmp_path)
+
+    query = {"symbols": ["AAA.NS"], "start_date": date(2023, 1, 1), "end_date": date(2023, 1, 5)}
+    assert cached.get_prices(**query) == {}
+    assert cached.get_prices(**query) == {}
+
+    assert upstream.get_prices.call_count == 2

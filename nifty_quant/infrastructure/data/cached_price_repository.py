@@ -95,10 +95,10 @@ class CachedPriceRepository(PriceRepository):
             for symbol in gap_symbols:
                 if symbol in fetched_data and not fetched_data[symbol].empty:
                     self.store.upsert(symbol, fetched_data[symbol])
-
-                # Mark interval as registered so we do not redundantly re-query
-                self.registry.add_interval(symbol, gap)
-                registry_modified = True
+                    # Register only intervals for which data was actually stored.
+                    # Failed or empty responses must remain retryable.
+                    self.registry.add_interval(symbol, gap)
+                    registry_modified = True
 
         if registry_modified:
             self.registry.save()
