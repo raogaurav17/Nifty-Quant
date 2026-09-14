@@ -7,13 +7,11 @@
   <form class="panel hero-panel control-form" method="get" action="/" id="backtestForm">
     <input type="hidden" name="run" value="1">
 
-    <!-- LEFT SIDE: Strategy Selection & Overview -->
+    <!-- Strategy selection -->
     <div class="simulator-left-col">
       <div class="hero-copy">
-        <h2>Strategy simulator</h2>
-        <p class="hero-text">
-          Select a trading strategy model on the left, tune hyperparameters in the middle section, and launch backtests.
-        </p>
+        <p class="eyebrow">Strategy</p>
+        <h2>Choose a model</h2>
       </div>
 
       <div class="field-section strategy-select-container">
@@ -35,100 +33,62 @@
         </select>
       </div>
 
-      <!-- Strategy Method Overview Card (Dynamic per strategy) -->
-      <div class="strategy-overview-card">
-        <p class="field-section-label" style="margin:0 0 8px;">Strategy Methodology</p>
-        
-        <div class="strat-desc-block" id="desc-low_vol" {% if form_values.strategy != 'low_vol' %}style="display:none"{% endif %}>
-          <span class="subwindow-badge">Low Volatility Anomaly</span>
-          <p>Exploits market mispricing by ranking constituents by realized return volatility ($\sigma_i$) over lookback window and holding the lowest-risk stocks.</p>
+      <div class="model-config-block">
+        <div class="hyperparams-header">
+          <p class="eyebrow">Model configuration</p>
+          <h3>Hyperparameters</h3>
         </div>
 
-        <div class="strat-desc-block" id="desc-momentum_12_1" {% if form_values.strategy != 'momentum_12_1' %}style="display:none"{% endif %}>
-          <span class="subwindow-badge">12-1 Momentum</span>
-          <p>Ranks constituents by 12-month return performance while skipping the most recent month to filter out short-term mean-reversion noise.</p>
+        <div class="strategy-subwindow strat-fields {% if form_values.strategy == 'low_vol' %}active-subwindow{% endif %}" id="subwindow-low_vol" {% if form_values.strategy != 'low_vol' %}style="display:none"{% endif %}>
+          <p class="field-section-label">Signal hyperparameters</p>
+          <div class="field-grid">
+            <label>
+              <span>Lookback window (days)</span>
+              <input type="number" step="1" min="20" name="lookback_days" value="{{ form_values.lookback_days }}">
+            </label>
+          </div>
         </div>
 
-        <div class="strat-desc-block" id="desc-arima" {% if form_values.strategy != 'arima' %}style="display:none"{% endif %}>
-          <span class="subwindow-badge">Vectorized AR(p) Model</span>
-          <p>Calculates one-step-ahead log-return forecasts using vectorised matrix OLS linear estimation across all universe constituents.</p>
+        <div class="strategy-subwindow strat-fields {% if form_values.strategy == 'momentum_12_1' %}active-subwindow{% endif %}" id="subwindow-momentum_12_1" {% if form_values.strategy != 'momentum_12_1' %}style="display:none"{% endif %}>
+          <p class="field-section-label">Signal hyperparameters</p>
+          <div class="field-grid">
+            <label>
+              <span>Lookback days</span>
+              <input type="number" step="1" min="20" name="lookback_days" value="{{ form_values.lookback_days }}">
+            </label>
+            <label>
+              <span>Skip recent days</span>
+              <input type="number" step="1" min="0" name="skip_recent_days" value="{{ form_values.skip_recent_days }}">
+            </label>
+          </div>
+        </div>
+
+        <div class="strategy-subwindow strat-fields {% if form_values.strategy == 'arima' %}active-subwindow{% endif %}" id="subwindow-arima" {% if form_values.strategy != 'arima' %}style="display:none"{% endif %}>
+          <p class="field-section-label">Signal hyperparameters</p>
+          <div class="field-grid">
+            <label>
+              <span>AR order (p)</span>
+              <input type="number" step="1" min="1" max="10" name="arima_p" value="{{ form_values.arima_p }}">
+            </label>
+            <label>
+              <span>Fit window (days)</span>
+              <input type="number" step="5" min="20" name="fit_window" value="{{ form_values.fit_window }}">
+            </label>
+            <label class="span-2">
+              <span>Fitting method</span>
+              <select name="arima_method" class="select-input">
+                <option value="ols" {% if form_values.arima_method == 'ols' %}selected{% endif %}>OLS — fast (numpy einsum)</option>
+                <option value="mle" {% if form_values.arima_method == 'mle' %}selected{% endif %}>MLE — statsmodels ARIMA</option>
+              </select>
+            </label>
+          </div>
         </div>
       </div>
 
-      <div class="hero-pills">
-        <span>{{ base_config.universe.name }}</span>
-        {% if snapshot.universe and snapshot.universe.is_dynamic %}
-          <span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">Dynamic (Survivorship-Free)</span>
-          <span>{{ snapshot.symbols | length }} constituents</span>
-        {% else %}
-          <span>{{ snapshot.symbols | length }} symbols</span>
-        {% endif %}
-        <span>NSE NIFTY 50</span>
-      </div>
     </div>
 
-    <!-- MIDDLE SIDE: Hyperparameters Section -->
+    <!-- Backtest and risk configuration -->
     <div class="simulator-middle-col">
-      <div class="hyperparams-header">
-        <p class="eyebrow">Model Configuration</p>
-        <h3>Hyperparameters</h3>
-      </div>
-
-      <!-- Signal Setup Subwindows -->
-      <div class="strategy-subwindow strat-fields {% if form_values.strategy == 'low_vol' %}active-subwindow{% endif %}" id="subwindow-low_vol" {% if form_values.strategy != 'low_vol' %}style="display:none"{% endif %}>
-        <div class="subwindow-header">
-          <p class="field-section-label" style="margin:0;">Signal Hyperparameters</p>
-          <span class="subwindow-badge">Low Volatility</span>
-        </div>
-        <div class="field-grid" style="margin-top: 10px;">
-          <label>
-            <span>Lookback window (days)</span>
-            <input type="number" step="1" min="20" name="lookback_days" value="{{ form_values.lookback_days }}">
-          </label>
-        </div>
-      </div>
-
-      <div class="strategy-subwindow strat-fields {% if form_values.strategy == 'momentum_12_1' %}active-subwindow{% endif %}" id="subwindow-momentum_12_1" {% if form_values.strategy != 'momentum_12_1' %}style="display:none"{% endif %}>
-        <div class="subwindow-header">
-          <p class="field-section-label" style="margin:0;">Signal Hyperparameters</p>
-          <span class="subwindow-badge">12-1 Momentum</span>
-        </div>
-        <div class="field-grid" style="margin-top: 10px;">
-          <label>
-            <span>Lookback days</span>
-            <input type="number" step="1" min="20" name="lookback_days" value="{{ form_values.lookback_days }}">
-          </label>
-          <label>
-            <span>Skip recent days</span>
-            <input type="number" step="1" min="0" name="skip_recent_days" value="{{ form_values.skip_recent_days }}">
-          </label>
-        </div>
-      </div>
-
-      <div class="strategy-subwindow strat-fields {% if form_values.strategy == 'arima' %}active-subwindow{% endif %}" id="subwindow-arima" {% if form_values.strategy != 'arima' %}style="display:none"{% endif %}>
-        <div class="subwindow-header">
-          <p class="field-section-label" style="margin:0;">Signal Hyperparameters</p>
-          <span class="subwindow-badge">AR(p) Forecast</span>
-        </div>
-        <div class="field-grid" style="margin-top: 10px;">
-          <label>
-            <span>AR order (p)</span>
-            <input type="number" step="1" min="1" max="10" name="arima_p" value="{{ form_values.arima_p }}">
-          </label>
-          <label>
-            <span>Fit window (days)</span>
-            <input type="number" step="5" min="20" name="fit_window" value="{{ form_values.fit_window }}">
-          </label>
-          <label class="span-2">
-            <span>Fitting method</span>
-            <select name="arima_method" class="select-input">
-              <option value="ols" {% if form_values.arima_method == 'ols' %}selected{% endif %}>OLS — fast (numpy einsum)</option>
-              <option value="mle" {% if form_values.arima_method == 'mle' %}selected{% endif %}>MLE — statsmodels ARIMA</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
       <!-- Backtest Hyperparameters -->
       <div class="field-section">
         <p class="field-section-label">Backtest Setup</p>
@@ -175,12 +135,28 @@
         </div>
       </div>
 
-      <button class="primary-btn" type="submit">Run backtest</button>
     </div>
   </form>
 
   <aside class="panel status-panel">
-    <div class="status-card progress-card" id="progressCard" style="display: none;">
+    <div class="execution-heading">
+      <p class="eyebrow">Execution</p>
+      <h3>Run and monitor</h3>
+      <p>Launch the configured simulation and follow live progress here.</p>
+    </div>
+    <button class="primary-btn" type="submit" form="backtestForm">Run backtest</button>
+
+    <div class="status-card error-card" id="errorCard" style="display: none;">
+      <p class="eyebrow">Run error</p>
+      <p id="errorMessageText"></p>
+    </div>
+
+  </aside>
+</section>
+
+<section class="grid-2 output-section" id="resultsSection" style="display: none;">
+  <div class="output-overlay" id="outputOverlay" aria-live="polite">
+    <div class="status-card progress-card" id="progressCard">
       <p class="eyebrow">Execution Progress</p>
       <div class="progress-header">
         <span id="jobStatusBadge" class="strat-pill">QUEUED</span>
@@ -190,31 +166,9 @@
         <div class="progress-bar-fill" id="progressBarFill"></div>
       </div>
       <p class="progress-step-text" id="progressStepText">Initializing task...</p>
+      <p class="connection-status"><span class="connection-dot"></span> Live updates via WebSocket</p>
     </div>
-
-    <div class="status-card error-card" id="errorCard" style="display: none;">
-      <p class="eyebrow">Run error</p>
-      <p id="errorMessageText"></p>
-    </div>
-
-    <div id="resultsContainer">
-      <div class="status-card">
-        <p class="eyebrow">Ready to run</p>
-        <p>Select a strategy, configure parameters, and click <strong>Run backtest</strong>.</p>
-      </div>
-      <div class="status-card strategies-info-card">
-        <p class="eyebrow">Available strategies</p>
-        {% for strat in strategies %}
-        <div class="strat-info-row">
-          <span class="strat-pill">{{ strat | replace("_", " ") | title }}</span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </aside>
-</section>
-
-<section class="grid-2" id="resultsSection" style="display: none;">
+  </div>
   <article class="panel chart-panel">
     <div class="panel-heading">
       <div>
@@ -224,7 +178,12 @@
       <div class="value-pill" id="equityEndVal">₹0.00</div>
     </div>
     <div class="chart-frame">
-      <svg viewBox="0 0 1200 360" preserveAspectRatio="none" aria-label="Equity curve">
+      <div class="chart-y-axis" aria-hidden="true">
+        <span id="chartAxisHigh">₹0</span>
+        <span id="chartAxisMid">₹0</span>
+        <span id="chartAxisLow">₹0</span>
+      </div>
+      <svg id="equityChart" viewBox="0 0 1200 360" preserveAspectRatio="none" aria-label="Equity curve">
         <defs>
           <linearGradient id="lineGradient" x1="0%" x2="100%" y1="0%" y2="0%">
             <stop offset="0%" stop-color="#ffffff" />
@@ -242,28 +201,18 @@
         <path d="M 28,332 L 1172,332 L 1172,28 L 28,28 Z" fill="rgba(255,255,255,0.02)" />
         <path id="svgAreaPath" d="" fill="url(#areaGradient)" />
         <path id="svgLinePath" d="" fill="none" stroke="url(#lineGradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+        <line id="chartHoverLine" x1="28" y1="28" x2="28" y2="332" stroke="#72d6ac" stroke-width="2" stroke-dasharray="5 5" opacity="0" />
+        <circle id="chartHoverDot" cx="28" cy="28" r="6" fill="#dff5eb" stroke="#10221c" stroke-width="3" opacity="0" />
         <line x1="28" y1="332" x2="1172" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
         <line x1="28" y1="28" x2="28" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
       </svg>
-      <div class="chart-labels">
-        <div class="chart-axis">
-          <div class="axis-label axis-y-max">
-            <span class="label-text">High</span>
-            <span class="label-value" id="chartHighVal">₹0</span>
-          </div>
-          <div class="axis-label axis-y-min">
-            <span class="label-text">Low</span>
-            <span class="label-value" id="chartLowVal">₹0</span>
-          </div>
-        </div>
-        <div class="chart-legend">
-          <div class="legend-item">
-            <span class="legend-dot"></span>
-            <span id="chartRangeVal">-- → --</span>
-          </div>
-        </div>
+      <div class="chart-footer">
+        <span class="legend-dot"></span>
+        <span id="chartRangeVal">-- → --</span>
       </div>
+      <div class="chart-tooltip" id="chartTooltip" role="status" aria-live="polite"></div>
     </div>
+    <div class="metrics-results-panel" id="resultsContainer"></div>
   </article>
 
   <article class="panel holdings-panel">
@@ -274,8 +223,7 @@
       </div>
       <div class="value-pill" id="holdingsCountVal">0 names</div>
     </div>
-    <div class="holdings-list" id="holdingsList">
-    </div>
+    <div class="holdings-list" id="holdingsList"></div>
   </article>
 </section>
 
@@ -307,7 +255,7 @@
   }
 
   const form = document.getElementById('backtestForm');
-  const submitBtn = form.querySelector('button[type="submit"]');
+  const submitBtn = document.querySelector('button[type="submit"][form="backtestForm"]');
 
   const progressCard = document.getElementById('progressCard');
   const progressBarFill = document.getElementById('progressBarFill');
@@ -320,16 +268,26 @@
 
   const resultsContainer = document.getElementById('resultsContainer');
   const resultsSection = document.getElementById('resultsSection');
+  const outputOverlay = document.getElementById('outputOverlay');
+  const equityChart = document.getElementById('equityChart');
+  const chartTooltip = document.getElementById('chartTooltip');
+  const chartHoverLine = document.getElementById('chartHoverLine');
+  const chartHoverDot = document.getElementById('chartHoverDot');
+  let chartPoints = [];
 
   function resetUI() {
     errorCard.style.display = 'none';
     progressCard.style.display = 'block';
+    outputOverlay.classList.add('active');
+    resultsSection.classList.add('output-running');
     progressBarFill.style.width = '0%';
     progressPercentText.innerText = '0%';
     progressStepText.innerText = 'Submitting backtest job...';
     jobStatusBadge.innerText = 'QUEUED';
     submitBtn.disabled = true;
     submitBtn.innerText = 'Running...';
+    resultsSection.style.display = 'grid';
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function updateProgress(pct, statusMsg, status) {
@@ -341,7 +299,8 @@
   }
 
   function showError(msg) {
-    progressCard.style.display = 'none';
+    outputOverlay.classList.remove('active');
+    resultsSection.classList.remove('output-running');
     errorCard.style.display = 'block';
     errorMessageText.innerText = msg;
     finishJob();
@@ -353,14 +312,11 @@
   }
 
   function renderSnapshot(snap) {
-    progressCard.style.display = 'none';
+    outputOverlay.classList.remove('active');
+    resultsSection.classList.remove('output-running');
 
     // Render results cards
     let metricsHtml = `
-      <div class="status-card strategy-badge-card">
-        <p class="eyebrow">Strategy</p>
-        <p class="strategy-name-display">${snap.strategy_name.replace(/_/g, ' ')}</p>
-      </div>
       <div class="status-card">
         <p class="eyebrow">Key metrics</p>
         <div class="metric-rail">
@@ -377,23 +333,33 @@
 
     // Render Chart
     document.getElementById('equityEndVal').innerText = `₹${snap.equity_end.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    document.getElementById('chartHighVal').innerText = `₹${Math.round(snap.chart_max).toLocaleString('en-IN')}`;
-    document.getElementById('chartLowVal').innerText = `₹${Math.round(snap.chart_min).toLocaleString('en-IN')}`;
+    const chartMid = (snap.chart_max + snap.chart_min) / 2;
+    document.getElementById('chartAxisHigh').innerText = `₹${Math.round(snap.chart_max).toLocaleString('en-IN')}`;
+    document.getElementById('chartAxisMid').innerText = `₹${Math.round(chartMid).toLocaleString('en-IN')}`;
+    document.getElementById('chartAxisLow').innerText = `₹${Math.round(snap.chart_min).toLocaleString('en-IN')}`;
     document.getElementById('chartRangeVal').innerText = `${snap.start_date} → ${snap.end_date}`;
 
     document.getElementById('svgLinePath').setAttribute('d', snap.chart_path);
     document.getElementById('svgAreaPath').setAttribute('d', `${snap.chart_path} L 1172,332 L 28,332 Z`);
+    chartPoints = snap.chart_points || [];
 
     // Render Holdings
     const holdingsList = document.getElementById('holdingsList');
     document.getElementById('holdingsCountVal').innerText = `${snap.holdings.length} names`;
 
-    let holdingsHtml = '';
+    let holdingsHtml = `
+      <div class="allocation-header">
+        <span>Symbol</span>
+        <span>Forecast</span>
+        <span>Weight</span>
+      </div>
+    `;
     snap.holdings.forEach(item => {
       holdingsHtml += `
         <div class="holding-row">
           <div class="holding-meta">
             <strong>${item.symbol}</strong>
+            <span class="holding-forecast">${item.forecast == null ? '--' : `${(item.forecast * 100).toFixed(2)}%`}</span>
             <span>${item.percent.toFixed(2)}%</span>
           </div>
           <div class="bar-track"><div class="bar-fill" style="width: ${item.percent}%"></div></div>
@@ -405,6 +371,34 @@
     resultsSection.style.display = 'grid';
     finishJob();
   }
+
+  equityChart.addEventListener('mousemove', (event) => {
+    if (!chartPoints.length) return;
+    const bounds = equityChart.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    const pointIndex = Math.round(ratio * (chartPoints.length - 1));
+    const point = chartPoints[pointIndex];
+    const x = 28 + (1144 * pointIndex / Math.max(chartPoints.length - 1, 1));
+    const span = Math.max(chartPoints.reduce((max, item) => Math.max(max, item.value), -Infinity) - chartPoints.reduce((min, item) => Math.min(min, item.value), Infinity), 1e-9);
+    const low = chartPoints.reduce((min, item) => Math.min(min, item.value), Infinity);
+    const y = 332 - ((point.value - low) / span) * 304;
+    chartHoverLine.setAttribute('x1', x);
+    chartHoverLine.setAttribute('x2', x);
+    chartHoverDot.setAttribute('cx', x);
+    chartHoverDot.setAttribute('cy', y);
+    chartHoverLine.setAttribute('opacity', '1');
+    chartHoverDot.setAttribute('opacity', '1');
+    chartTooltip.innerText = `${point.date}  ·  ₹${point.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    chartTooltip.style.left = `${Math.min(Math.max(event.clientX - bounds.left + 12, 12), bounds.width - 180)}px`;
+    chartTooltip.style.top = `${Math.max(event.clientY - bounds.top - 46, 8)}px`;
+    chartTooltip.classList.add('visible');
+  });
+
+  equityChart.addEventListener('mouseleave', () => {
+    chartHoverLine.setAttribute('opacity', '0');
+    chartHoverDot.setAttribute('opacity', '0');
+    chartTooltip.classList.remove('visible');
+  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();

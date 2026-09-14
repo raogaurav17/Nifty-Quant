@@ -31,6 +31,7 @@ class BacktestSnapshot:
     result: BacktestResult
     metrics: PerformanceMetrics
     chart_path: str
+    chart_points: list[dict[str, float | str]]
     chart_min: float
     chart_max: float
     holdings: list[dict[str, Any]]
@@ -39,6 +40,7 @@ class BacktestSnapshot:
     end_date: date | None
     initial_capital: float
     symbols: list[str]
+    forecasts: dict[str, float]
     strategy: Strategy | None = None
     universe: UniverseProvider | None = None
 
@@ -89,6 +91,20 @@ def _build_chart_path(equity_curve: pd.Series) -> tuple[str, float, float]:
         points.append(f"{x:.1f},{y:.1f}")
 
     return f"M {points[0]}" + " " + " ".join(f"L {point}" for point in points[1:]), low, high
+
+
+def _build_chart_points(equity_curve: pd.Series) -> list[dict[str, float | str]]:
+    """Return sampled, date-stamped equity values for chart hover interactions."""
+    if equity_curve.empty:
+        return []
+
+    sampled = equity_curve.iloc[:: max(len(equity_curve) // 120, 1)]
+    if sampled.index[-1] != equity_curve.index[-1]:
+        sampled = pd.concat([sampled, equity_curve.iloc[[-1]]])
+    return [
+        {"date": str(index.date()), "value": float(value)}
+        for index, value in sampled.items()
+    ]
 
 
 def _build_holdings(result: BacktestResult) -> list[dict[str, Any]]:
@@ -226,6 +242,7 @@ def build_backtest_snapshot(
         result=result,
         metrics=metrics,
         chart_path=chart_path,
+        chart_points=_build_chart_points(result.equity_curve),
         chart_min=chart_min,
         chart_max=chart_max,
         holdings=_build_holdings(result),
@@ -234,7 +251,7 @@ def build_backtest_snapshot(
         end_date=end_date,
         initial_capital=initial_capital,
         symbols=list(fetch_symbols),
+        forecasts=result.forecasts,
         strategy=strategy,
         universe=universe,
     )
-

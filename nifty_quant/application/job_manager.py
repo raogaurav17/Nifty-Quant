@@ -180,14 +180,20 @@ class JobManager:
                     "days_traded": len(snapshot.result.returns),
                 },
                 "chart_path": snapshot.chart_path,
+                "chart_points": snapshot.chart_points,
                 "chart_min": snapshot.chart_min,
                 "chart_max": snapshot.chart_max,
                 "equity_end": snapshot.result.equity_curve.iloc[-1] if not snapshot.result.equity_curve.empty else 0.0,
-                "holdings": snapshot.holdings,
+                "holdings": [
+                    {
+                        **holding,
+                        "forecast": snapshot.forecasts.get(holding["symbol"]),
+                    }
+                    for holding in snapshot.holdings
+                ],
                 "recent_trades": snapshot.recent_trades,
                 "start_date": str(snapshot.start_date),
                 "end_date": str(snapshot.end_date) if snapshot.end_date else "present",
             }
 
         return data
-

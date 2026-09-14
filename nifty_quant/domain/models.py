@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 import pandas as pd
@@ -16,4 +16,4 @@ class BacktestResult:
     returns: pd.Series
     weights: dict[date, pd.Series]
     trades: pd.DataFrame
-
+    forecasts: dict[str, float] = field(default_factory=dict)

@@ -104,6 +104,17 @@ class BacktestEngine:
         net_returns = portfolio_returns - costs
         equity_curve = (1 + net_returns).cumprod() * initial_capital
         trades = turnover.to_frame(name="turnover")
+        latest_weights = weights.iloc[-1]
+        latest_symbols = latest_weights[latest_weights > 0].index.tolist()
+        latest_forecasts = (
+            self.strategy.compute_signals(
+                prices=prices.loc[:, latest_symbols],
+                daily_returns=daily_returns.loc[:, latest_symbols],
+                as_of=daily_returns.index[-1],
+            )
+            if latest_symbols
+            else {}
+        )
 
         if progress_callback:
             progress_callback(0.90, "Finalizing backtest metrics...")
@@ -113,6 +124,7 @@ class BacktestEngine:
             returns=net_returns,
             weights={dt: weights.loc[dt] for dt in weights.index},
             trades=trades,
+            forecasts=latest_forecasts,
         )
 
     def _build_weights(
