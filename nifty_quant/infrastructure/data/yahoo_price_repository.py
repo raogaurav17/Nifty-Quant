@@ -12,6 +12,7 @@ import pandas as pd
 import yfinance as yf
 
 from nifty_quant.interfaces.price_repository import PriceRepository
+from nifty_quant.infrastructure.data.price_validation import remove_isolated_price_spikes
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,7 @@ class YahooPriceRepository(PriceRepository):
                     index=sym_df.index,
                 ).dropna(subset=["adj_close"])
                 if not out.empty:
-                    symbol_to_df[symbol] = out
+                    symbol_to_df[symbol] = remove_isolated_price_spikes(out, symbol)
         else:
             # Handle single-level columns for single symbol request
             adj_close_col = "Adj Close" if "Adj Close" in raw.columns else "Close"
@@ -145,7 +146,6 @@ class YahooPriceRepository(PriceRepository):
                 index=raw.index,
             ).dropna(subset=["adj_close"])
             if not out.empty:
-                symbol_to_df[symbol] = out
+                symbol_to_df[symbol] = remove_isolated_price_spikes(out, symbol)
 
         return symbol_to_df
-

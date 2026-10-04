@@ -1,12 +1,13 @@
 import time
-from datetime import date
+import logging
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
 from httpx import ASGITransport, AsyncClient
+from fastapi.testclient import TestClient
 
-from nifty_quant.application.job_manager import JobManager, JobStatus
+from nifty_quant.application.job_manager import BacktestJob, JobManager, JobStatus
 from nifty_quant.web.app import app
 
 
@@ -60,6 +61,31 @@ def test_job_manager_lifecycle():
     assert job.snapshot is not None
 
 
+def test_listener_failures_are_logged(caplog):
+    manager = JobManager(max_workers=1)
+    job = BacktestJob(
+        job_id="listener-test",
+        created_at=time.time(),
+        status=JobStatus.QUEUED,
+        progress=0.0,
+        status_message="queued",
+        overrides=[],
+    )
+    manager.jobs[job.job_id] = job
+
+    def failing_listener(data):
+        del data
+        raise RuntimeError("listener failed")
+
+    manager.add_listener(job.job_id, failing_listener)
+
+    with caplog.at_level(logging.ERROR, logger="nifty_quant.application.job_manager"):
+        manager._notify_listeners(job)
+
+    assert "Job listener failed" in caplog.text
+    manager.executor.shutdown(wait=True)
+
+
 @pytest.mark.anyio
 async def test_web_api_endpoints():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
@@ -93,4 +119,22 @@ async def test_job_not_found():
         assert response.status_code == 404
 
 
+def test_websocket_returns_already_completed_job():
+    manager = JobManager.get_instance()
+    job = BacktestJob(
+        job_id="already-completed",
+        created_at=time.time(),
+        status=JobStatus.COMPLETED,
+        progress=1.0,
+        status_message="done",
+        overrides=[],
+    )
+    manager.jobs[job.job_id] = job
 
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/backtest/already-completed") as websocket:
+            data = websocket.receive_json()
+
+    assert data["status"] == JobStatus.COMPLETED.value
+    assert data["progress"] == 1.0
+    manager.jobs.pop(job.job_id, None)

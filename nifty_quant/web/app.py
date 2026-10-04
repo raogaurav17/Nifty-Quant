@@ -38,7 +38,6 @@ _STRATEGY_PARAMS: dict[str, list[tuple[str, str]]] = {
     "arima": [
         ("strategy.arima_p",   "arima_p"),
         ("strategy.fit_window", "fit_window"),
-        ("strategy.method",    "arima_method"),
     ],
 }
 
@@ -78,11 +77,6 @@ def _dict_to_overrides(params: dict[str, Any]) -> list[str]:
     return overrides
 
 
-def _query_overrides(request: Request) -> list[str]:
-    """Convert incoming query parameters into Hydra overrides list."""
-    return _dict_to_overrides(dict(request.query_params))
-
-
 def _query_values(request: Request, base_cfg: dict[str, Any]) -> dict[str, Any]:
     """Extract form field values with fallbacks to defaults from base config."""
     params = request.query_params
@@ -108,24 +102,14 @@ def _query_values(request: Request, base_cfg: dict[str, Any]) -> dict[str, Any]:
         "skip_recent_days": _p("skip_recent_days", strat.get("skip_recent_days", 21)),
         "arima_p": _p("arima_p", strat.get("arima_p", 2)),
         "fit_window": _p("fit_window", strat.get("fit_window", 60)),
-        "arima_method": _p("arima_method", strat.get("method", "ols")),
     }
 
 
-def _summary_cards(snapshot: Any) -> list[dict[str, str]]:
-    """Format key performance metrics into dashboard summary card models."""
-    return [
-        {"label": "Total return",   "value": f"{snapshot.metrics.total_return:.2%}"},
-        {"label": "Annual return",  "value": f"{snapshot.metrics.annual_return:.2%}"},
-        {"label": "Volatility",     "value": f"{snapshot.metrics.volatility_annual:.2%}"},
-        {"label": "Sharpe",         "value": f"{snapshot.metrics.sharpe_ratio:.2f}"},
-        {"label": "Max drawdown",   "value": f"{snapshot.metrics.max_drawdown:.2%}"},
-        {"label": "Days traded",    "value": f"{len(snapshot.result.returns):,}"},
-    ]
-
-
 @app.post("/api/backtest/run")
-async def run_backtest_api(payload: dict[str, Any] | None = Body(None), request: Request = None) -> JSONResponse:
+async def run_backtest_api(
+    payload: dict[str, Any] | None = Body(None),
+    request: Request = None,
+) -> JSONResponse:
     """Trigger an asynchronous backtest run and return the queued job descriptor."""
     params: dict[str, Any] = {}
     if payload:
@@ -164,7 +148,12 @@ async def websocket_backtest_progress(websocket: WebSocket, job_id: str) -> None
         loop.call_soon_threadsafe(queue.put_nowait, data)
 
     job_manager.add_listener(job_id, listener)
-    await websocket.send_json(job_manager.to_dict(job))
+    current = job_manager.to_dict(job)
+    await websocket.send_json(current)
+    if current["status"] in (JobStatus.COMPLETED.value, JobStatus.FAILED.value):
+        job_manager.remove_listener(job_id, listener)
+        await websocket.close()
+        return
 
     try:
         while True:
@@ -190,7 +179,6 @@ def dashboard(request: Request) -> HTMLResponse:
         "form_values": form_values,
         "strategies": available_strategies(),
         "snapshot": None,
-        "summary_cards": [],
         "error_message": None,
         "equity_end": None,
         "chart_path": "",
@@ -199,4 +187,3 @@ def dashboard(request: Request) -> HTMLResponse:
         "holdings": [],
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
-

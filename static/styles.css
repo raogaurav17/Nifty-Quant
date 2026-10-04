@@ -463,6 +463,7 @@ select.select-input:focus {
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(25, 25, 25, 0.5);
+  container-type: inline-size;
 }
 
 .metric-chip span {
@@ -474,8 +475,9 @@ select.select-input:focus {
 .metric-chip strong {
   display: block;
   margin: 6px 0 0;
-  font-size: 1.35rem;
+  font-size: clamp(0.85rem, 12cqw, 1.35rem);
   font-family: "IBM Plex Mono", monospace;
+  white-space: nowrap;
 }
 
 .panel-heading {
@@ -1035,7 +1037,7 @@ select.select-input:focus,
 }
 
 .metric-chip strong {
-  font-size: 1.25rem;
+  font-size: clamp(0.85rem, 12cqw, 1.25rem);
 }
 
 .metric-chip:nth-child(1),

@@ -74,13 +74,6 @@
               <span>Fit window (days)</span>
               <input type="number" step="5" min="20" name="fit_window" value="{{ form_values.fit_window }}">
             </label>
-            <label class="span-2">
-              <span>Fitting method</span>
-              <select name="arima_method" class="select-input">
-                <option value="ols" {% if form_values.arima_method == 'ols' %}selected{% endif %}>OLS — fast (numpy einsum)</option>
-                <option value="mle" {% if form_values.arima_method == 'mle' %}selected{% endif %}>MLE — statsmodels ARIMA</option>
-              </select>
-            </label>
           </div>
         </div>
       </div>
@@ -315,16 +308,19 @@
     outputOverlay.classList.remove('active');
     resultsSection.classList.remove('output-running');
 
+    const percent = value => `${(value * 100).toFixed(2)}%`;
+    const decimal = value => Number(value).toFixed(2);
+
     // Render results cards
     let metricsHtml = `
       <div class="status-card">
         <p class="eyebrow">Key metrics</p>
         <div class="metric-rail">
-          <div class="metric-chip"><span>Total return</span><strong>${snap.metrics.total_return}</strong></div>
-          <div class="metric-chip"><span>Annual return</span><strong>${snap.metrics.annual_return}</strong></div>
-          <div class="metric-chip"><span>Volatility</span><strong>${snap.metrics.volatility_annual}</strong></div>
-          <div class="metric-chip"><span>Sharpe</span><strong>${snap.metrics.sharpe_ratio}</strong></div>
-          <div class="metric-chip"><span>Max drawdown</span><strong>${snap.metrics.max_drawdown}</strong></div>
+          <div class="metric-chip"><span>Total return</span><strong>${percent(snap.metrics.total_return)}</strong></div>
+          <div class="metric-chip"><span>Annual return</span><strong>${percent(snap.metrics.annual_return)}</strong></div>
+          <div class="metric-chip"><span>Volatility</span><strong>${percent(snap.metrics.volatility_annual)}</strong></div>
+          <div class="metric-chip"><span>Sharpe</span><strong>${decimal(snap.metrics.sharpe_ratio)}</strong></div>
+          <div class="metric-chip"><span>Max drawdown</span><strong>${percent(snap.metrics.max_drawdown)}</strong></div>
           <div class="metric-chip"><span>Days traded</span><strong>${snap.metrics.days_traded}</strong></div>
         </div>
       </div>

@@ -5,12 +5,15 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 import threading
 import time
 from typing import Any, Callable
 import uuid
 
 from nifty_quant.application.backtest_runner import BacktestSnapshot, build_backtest_snapshot
+
+logger = logging.getLogger(__name__)
 
 
 class JobStatus(str, Enum):
@@ -111,7 +114,7 @@ class JobManager:
             try:
                 listener(payload)
             except Exception:
-                pass
+                logger.exception("Job listener failed for job %s", job.job_id)
 
     def _execute_job(self, job_id: str) -> None:
         """Worker thread entry point executing the backtest pipeline."""
@@ -170,20 +173,28 @@ class JobManager:
             data["snapshot"] = {
                 "strategy_name": snapshot.config.get("strategy", {}).get("name", "momentum_12_1"),
                 "metrics": {
-                    "total_return": f"{snapshot.metrics.total_return:.2%}",
-                    "annual_return": f"{snapshot.metrics.annual_return:.2%}",
-                    "volatility_annual": f"{snapshot.metrics.volatility_annual:.2%}",
-                    "sharpe_ratio": f"{snapshot.metrics.sharpe_ratio:.2f}",
-                    "sortino_ratio": f"{snapshot.metrics.sortino_ratio:.2f}",
-                    "max_drawdown": f"{snapshot.metrics.max_drawdown:.2%}",
-                    "calmar_ratio": f"{snapshot.metrics.calmar_ratio:.2f}" if snapshot.metrics.calmar_ratio is not None else None,
+                    "total_return": float(snapshot.metrics.total_return),
+                    "annual_return": float(snapshot.metrics.annual_return),
+                    "volatility_annual": float(snapshot.metrics.volatility_annual),
+                    "sharpe_ratio": float(snapshot.metrics.sharpe_ratio),
+                    "sortino_ratio": float(snapshot.metrics.sortino_ratio),
+                    "max_drawdown": float(snapshot.metrics.max_drawdown),
+                    "calmar_ratio": (
+                        float(snapshot.metrics.calmar_ratio)
+                        if snapshot.metrics.calmar_ratio is not None
+                        else None
+                    ),
                     "days_traded": len(snapshot.result.returns),
                 },
                 "chart_path": snapshot.chart_path,
                 "chart_points": snapshot.chart_points,
                 "chart_min": snapshot.chart_min,
                 "chart_max": snapshot.chart_max,
-                "equity_end": snapshot.result.equity_curve.iloc[-1] if not snapshot.result.equity_curve.empty else 0.0,
+                "equity_end": (
+                    float(snapshot.result.equity_curve.iloc[-1])
+                    if not snapshot.result.equity_curve.empty
+                    else 0.0
+                ),
                 "holdings": [
                     {
                         **holding,

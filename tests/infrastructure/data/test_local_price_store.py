@@ -48,3 +48,17 @@ def test_local_price_store_nonexistent_symbol(tmp_path: Path):
     store = LocalPriceStore(tmp_path)
     df = store.read("NONEXISTENT.NS")
     assert df.empty
+
+
+def test_local_price_store_filters_existing_isolated_price_spike(tmp_path: Path):
+    store = LocalPriceStore(tmp_path, storage_format="csv")
+    dates = pd.date_range("2023-01-01", periods=3, freq="D")
+    df = pd.DataFrame(
+        {"adj_close": [100.0, 500.0, 101.0], "volume": [10, 0, 20]},
+        index=dates,
+    )
+
+    store.upsert("SPIKE.NS", df)
+
+    result = store.read("SPIKE.NS")
+    assert list(result["adj_close"]) == [100.0, 101.0]

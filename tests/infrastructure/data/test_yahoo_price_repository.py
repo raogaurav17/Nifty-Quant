@@ -162,6 +162,30 @@ def test_get_prices_defaults_volume_to_zero_when_missing(monkeypatch):
     assert list(result["NOVOL.NS"]["volume"]) == [0.0, 0.0]
 
 
+def test_get_prices_drops_zero_volume_isolated_price_spike(monkeypatch):
+    dates = pd.date_range("2020-01-01", periods=3, freq="D")
+    raw = pd.DataFrame(
+        {
+            "Adj Close": [100.0, 500.0, 101.0],
+            "Volume": [1000, 0, 1100],
+        },
+        index=dates,
+    )
+
+    monkeypatch.setattr(
+        "nifty_quant.infrastructure.data.yahoo_price_repository.yf.download",
+        lambda **_kwargs: raw,
+    )
+
+    result = YahooPriceRepository().get_prices(
+        symbols=["SPIKE.NS"],
+        start_date=date(2020, 1, 1),
+        end_date=None,
+    )
+
+    assert list(result["SPIKE.NS"]["adj_close"]) == [100.0, 101.0]
+
+
 def test_get_prices_refetches_missing_symbol_individually(monkeypatch):
     dates = pd.date_range("2020-01-01", periods=2, freq="D")
     multi_raw = pd.DataFrame(

@@ -10,6 +10,8 @@ from typing import Literal
 
 import pandas as pd
 
+from nifty_quant.infrastructure.data.price_validation import remove_isolated_price_spikes
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,6 +83,7 @@ class LocalPriceStore:
             df.index = df.index.tz_localize(None)
 
         df = df.sort_index()
+        df = remove_isolated_price_spikes(df, symbol)
 
         if start_date is not None:
             df = df[df.index.date >= start_date]
