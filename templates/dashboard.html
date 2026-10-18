@@ -141,10 +141,14 @@
       <h4>First backtest may take longer</h4>
       <p>Historical market data must be downloaded first. Later backtests will use the local cache and should start faster.</p>
     </div>
-    <button class="primary-btn" type="submit" form="backtestForm">Run backtest</button>
+    <button class="primary-btn" type="submit" form="backtestForm" id="runBacktestBtn">Run backtest</button>
+    <button class="secondary-btn" id="runMcBtn" disabled title="Click 'Run backtest' first to generate returns for Monte Carlo simulation">
+      ⚛ Run Monte Carlo
+    </button>
+    <p class="field-hint" id="mcSidebarHint" style="margin: 6px 0 0; font-size: 0.78rem; color: var(--muted); text-align: center;">Requires completed backtest</p>
 
     <div class="status-card error-card" id="errorCard" style="display: none;">
-      <p class="eyebrow">Run error</p>
+      <p class="eyebrow">Notice / Error</p>
       <p id="errorMessageText"></p>
     </div>
 
@@ -224,6 +228,92 @@
   </article>
 </section>
 
+<!-- ── Monte Carlo Results Section ───────────────────────────────────────── -->
+<section id="mcSection" style="display:none" class="mc-section">
+  <div class="mc-section-header">
+    <div>
+      <p class="eyebrow">Monte Carlo Analysis</p>
+      <h2>Bootstrap confidence intervals &amp; forward projection</h2>
+      <p class="mc-subtitle">Block-bootstrap (N=2,000 simulations, Politis-Romano block size √T). Non-parametric — no GBM, no normality assumption.</p>
+    </div>
+    <div class="mc-progress-wrap" id="mcProgressWrap" style="display:none">
+      <div class="mc-progress-bar-track">
+        <div class="mc-progress-bar-fill" id="mcProgressBarFill"></div>
+      </div>
+      <p class="mc-progress-label" id="mcProgressLabel">Running…</p>
+    </div>
+  </div>
+
+  <div class="mc-grid">
+    <!-- CI Metrics Table -->
+    <article class="panel mc-ci-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Confidence intervals</p>
+          <h3>90% CI on backtest metrics</h3>
+        </div>
+        <div class="value-pill" id="mcSimsLabel">—</div>
+      </div>
+      <div id="mcCiTable" class="mc-ci-table-wrap"></div>
+
+      <!-- Sharpe distribution sparkline -->
+      <div class="mc-sparkline-wrap">
+        <p class="mc-sparkline-label eyebrow">Sharpe ratio distribution (bootstrap)</p>
+        <svg id="mcSparkline" viewBox="0 0 400 60" preserveAspectRatio="none" class="mc-sparkline"></svg>
+        <div class="mc-sparkline-legend">
+          <span id="mcSparkP5" class="mc-legend-val">P5: —</span>
+          <span id="mcSparkMedian" class="mc-legend-val mc-legend-mid">Median: —</span>
+          <span id="mcSparkP95" class="mc-legend-val">P95: —</span>
+        </div>
+      </div>
+    </article>
+
+    <!-- Forward Projection Chart -->
+    <article class="panel mc-forward-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Forward projection</p>
+          <h3>1-year equity fan (1,000 paths)</h3>
+        </div>
+        <div class="value-pill" id="mcForwardHorizon">252 days</div>
+      </div>
+      <div class="chart-frame">
+        <svg id="mcForwardChart" viewBox="0 0 1200 360" preserveAspectRatio="none" aria-label="Forward equity fan">
+          <defs>
+            <linearGradient id="mcFanGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+              <stop offset="0%" stop-color="rgba(114,214,172,0.18)" />
+              <stop offset="100%" stop-color="rgba(114,214,172,0.03)" />
+            </linearGradient>
+          </defs>
+          <!-- historical tail placeholder (filled by JS) -->
+          <path id="mcHistPath" d="" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-dasharray="6 3" />
+          <!-- fan fill between P10 and P90 -->
+          <path id="mcFanFill" d="" fill="url(#mcFanGradient)" />
+          <!-- P10 lower bound -->
+          <path id="mcP10Path" d="" fill="none" stroke="rgba(114,214,172,0.45)" stroke-width="1.5" stroke-dasharray="4 3" />
+          <!-- P90 upper bound -->
+          <path id="mcP90Path" d="" fill="none" stroke="rgba(114,214,172,0.45)" stroke-width="1.5" stroke-dasharray="4 3" />
+          <!-- P50 median path -->
+          <path id="mcP50Path" d="" fill="none" stroke="#72d6ac" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          <!-- today divider -->
+          <line id="mcTodayLine" x1="28" y1="28" x2="28" y2="332" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-dasharray="5 4" />
+          <text id="mcTodayLabel" x="30" y="44" fill="rgba(255,255,255,0.5)" font-size="13" font-family="Inter, sans-serif">Today</text>
+          <line x1="28" y1="332" x2="1172" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
+          <line x1="28" y1="28" x2="28" y2="332" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
+        </svg>
+        <div class="chart-footer">
+          <span style="display:flex;gap:1.2rem;align-items:center;flex-wrap:wrap">
+            <span><span style="color:#72d6ac">━</span> Median (P50)</span>
+            <span><span style="color:rgba(114,214,172,0.5)">╌</span> P10 / P90 bounds</span>
+            <span><span style="color:rgba(255,255,255,0.3)">╌╌</span> Historical</span>
+          </span>
+          <span id="mcForwardRange">—</span>
+        </div>
+      </div>
+    </article>
+  </div>
+</section>
+
 <script>
   const strategySelect = document.getElementById('strategySelect');
   const allSubwindows = document.querySelectorAll('.strat-fields');
@@ -253,6 +343,9 @@
 
   const form = document.getElementById('backtestForm');
   const submitBtn = document.querySelector('button[type="submit"][form="backtestForm"]');
+  const runMcBtn = document.getElementById('runMcBtn');
+
+  let completedBacktestJobId = null;  // set after each successful backtest
 
   const progressCard = document.getElementById('progressCard');
   const progressBarFill = document.getElementById('progressBarFill');
@@ -315,7 +408,7 @@
     const percent = value => `${(value * 100).toFixed(2)}%`;
     const decimal = value => Number(value).toFixed(2);
 
-    // Render results cards
+    // Render results cards + Monte Carlo Launch Banner
     let metricsHtml = `
       <div class="status-card">
         <p class="eyebrow">Key metrics</p>
@@ -328,8 +421,27 @@
           <div class="metric-chip"><span>Days traded</span><strong>${snap.metrics.days_traded}</strong></div>
         </div>
       </div>
+      <div class="mc-launch-banner">
+        <div class="mc-launch-text">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="strat-pill" style="border-color: rgba(114, 214, 172, 0.4); color: #72d6ac;">Statistical Validation</span>
+            <strong style="color: var(--text);">Monte Carlo Stress Test &amp; Forward Projection</strong>
+          </div>
+          <p style="margin: 6px 0 0; font-size: 0.84rem; color: var(--muted); line-height: 1.45;">
+            Resample 2,000 block-bootstrap paths (Politis-Romano &radic;T blocks) to derive 90% confidence intervals on Sharpe &amp; Drawdown, plus a 252-day forward fan.
+          </p>
+        </div>
+        <button type="button" class="primary-btn mc-hero-launch-btn" id="runMcResultsBtn">
+          ⚛ Run Monte Carlo Simulation
+        </button>
+      </div>
     `;
     resultsContainer.innerHTML = metricsHtml;
+
+    const heroBtn = document.getElementById('runMcResultsBtn');
+    if (heroBtn) {
+      heroBtn.addEventListener('click', () => triggerMonteCarlo());
+    }
 
     // Render Chart
     document.getElementById('equityEndVal').innerText = `₹${snap.equity_end.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -342,6 +454,17 @@
     document.getElementById('svgLinePath').setAttribute('d', snap.chart_path);
     document.getElementById('svgAreaPath').setAttribute('d', `${snap.chart_path} L 1172,332 L 28,332 Z`);
     chartPoints = snap.chart_points || [];
+
+    // Enable and highlight the Monte Carlo button now that we have a completed job
+    if (runMcBtn) {
+      runMcBtn.disabled = false;
+      runMcBtn.innerText = '⚛ Run Monte Carlo';
+      const hint = document.getElementById('mcSidebarHint');
+      if (hint) {
+        hint.innerText = 'Ready to simulate (2,000 paths)';
+        hint.style.color = '#72d6ac';
+      }
+    }
 
     // Render Holdings
     const holdingsList = document.getElementById('holdingsList');
@@ -403,6 +526,18 @@
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     resetUI();
+    // Hide MC section when re-running backtest
+    document.getElementById('mcSection').style.display = 'none';
+    if (runMcBtn) {
+      runMcBtn.disabled = true;
+      runMcBtn.innerText = '⚛ Run Monte Carlo';
+      const hint = document.getElementById('mcSidebarHint');
+      if (hint) {
+        hint.innerText = 'Backtest in progress…';
+        hint.style.color = 'var(--muted)';
+      }
+    }
+    completedBacktestJobId = null;
 
     const formData = new FormData(form);
     const payload = {};
@@ -426,6 +561,7 @@
       }
 
       const jobData = await resp.json();
+      completedBacktestJobId = jobData.job_id;
       connectWebSocket(jobData.job_id);
     } catch (err) {
       showError('Failed to launch backtest: ' + err.message);
@@ -481,6 +617,244 @@
         showError('Polling error: ' + err.message);
       }
     }, 600);
+  }
+
+  // ── Monte Carlo ────────────────────────────────────────────────────────────
+
+  async function triggerMonteCarlo() {
+    if (!completedBacktestJobId) {
+      showError('Please click "Run backtest" first. Monte Carlo simulation requires historical strategy returns from a completed backtest.');
+      const errCard = document.getElementById('errorCard');
+      if (errCard) {
+        errCard.style.display = 'block';
+        errCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    if (runMcBtn) {
+      runMcBtn.disabled = true;
+      runMcBtn.innerText = '⚛ Running…';
+    }
+    const heroBtn = document.getElementById('runMcResultsBtn');
+    if (heroBtn) {
+      heroBtn.disabled = true;
+      heroBtn.innerText = '⚛ Running Simulation…';
+    }
+
+    const mcSection = document.getElementById('mcSection');
+    mcSection.style.display = 'block';
+    mcSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('mcProgressWrap').style.display = 'block';
+    document.getElementById('mcProgressLabel').innerText = 'Queueing Monte Carlo job…';
+
+    try {
+      const resp = await fetch('/api/mc/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_job_id: completedBacktestJobId,
+          n_simulations: 2000,
+          horizon_days: 252
+        })
+      });
+      if (!resp.ok) {
+        const errJson = await resp.json().catch(() => ({}));
+        throw new Error(errJson.detail || `HTTP ${resp.status}`);
+      }
+      const jobData = await resp.json();
+      connectMcWebSocket(jobData.job_id);
+    } catch (err) {
+      document.getElementById('mcProgressLabel').innerText = 'Error: ' + err.message;
+      if (runMcBtn) {
+        runMcBtn.disabled = false;
+        runMcBtn.innerText = '⚛ Run Monte Carlo';
+      }
+      if (heroBtn) {
+        heroBtn.disabled = false;
+        heroBtn.innerText = '⚛ Run Monte Carlo Simulation';
+      }
+    }
+  }
+
+  if (runMcBtn) {
+    runMcBtn.addEventListener('click', () => triggerMonteCarlo());
+  }
+
+  function connectMcWebSocket(mcJobId) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/mc/${mcJobId}`);
+
+    ws.onmessage = (evt) => {
+      const data = JSON.parse(evt.data);
+      const pct = Math.round(data.progress * 100);
+      document.getElementById('mcProgressBarFill').style.width = `${pct}%`;
+      document.getElementById('mcProgressLabel').innerText = data.status_message || '';
+
+      const heroBtn = document.getElementById('runMcResultsBtn');
+      if (data.status === 'COMPLETED') {
+        document.getElementById('mcProgressWrap').style.display = 'none';
+        renderMcResults(data.mc_result, data.forward_projection);
+        if (runMcBtn) {
+          runMcBtn.disabled = false;
+          runMcBtn.innerText = '⚛ Re-run Monte Carlo';
+        }
+        if (heroBtn) {
+          heroBtn.disabled = false;
+          heroBtn.innerText = '⚛ Re-run Monte Carlo Simulation';
+        }
+        ws.close();
+      } else if (data.status === 'FAILED') {
+        document.getElementById('mcProgressLabel').innerText = '✗ ' + (data.error || data.status_message);
+        if (runMcBtn) {
+          runMcBtn.disabled = false;
+          runMcBtn.innerText = '⚛ Run Monte Carlo';
+        }
+        if (heroBtn) {
+          heroBtn.disabled = false;
+          heroBtn.innerText = '⚛ Run Monte Carlo Simulation';
+        }
+        ws.close();
+      }
+    };
+  }
+
+  function renderMcResults(mc, fwd) {
+    if (!mc) return;
+
+    // ── CI Table ────────────────────────────────────────────────────────
+    const pct = v => `${(v * 100).toFixed(2)}%`;
+    const dec = v => Number(v).toFixed(3);
+    const probBadge = p => {
+      const color = p >= 0.9 ? '#72d6ac' : p >= 0.7 ? '#f0c040' : '#e07060';
+      return `<span style="color:${color};font-weight:700">${(p * 100).toFixed(1)}%</span>`;
+    };
+
+    document.getElementById('mcSimsLabel').innerText =
+      `N=${mc.n_simulations.toLocaleString()}  ·  Block=${mc.block_size}`;
+
+    const rows = [
+      { label: 'Sharpe Ratio',   low: dec(mc.sharpe_ci_low),  mid: dec(mc.sharpe_ci_mid),  high: dec(mc.sharpe_ci_high),  prob: probBadge(mc.p_positive_sharpe),  note: 'P(Sharpe>0)' },
+      { label: 'Max Drawdown',   low: pct(mc.max_dd_ci_low),  mid: pct(mc.max_dd_ci_mid),  high: pct(mc.max_dd_ci_high),  prob: '—',                              note: '(5th = worst)' },
+      { label: 'Annual Return',  low: pct(mc.cagr_ci_low),   mid: pct(mc.cagr_ci_mid),   high: pct(mc.cagr_ci_high),   prob: probBadge(mc.p_positive_return),  note: 'P(CAGR>0)' },
+    ];
+
+    const tableHtml = `
+      <table class="mc-ci-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>P5</th>
+            <th class="mc-mid-col">Median</th>
+            <th>P95</th>
+            <th>Probability</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="mc-metric-name">${r.label}</td>
+              <td class="mc-ci-bound">${r.low}</td>
+              <td class="mc-ci-mid">${r.mid}</td>
+              <td class="mc-ci-bound">${r.high}</td>
+              <td>${r.prob} <small class="mc-prob-note">${r.note}</small></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    document.getElementById('mcCiTable').innerHTML = tableHtml;
+
+    // ── Sharpe Sparkline ────────────────────────────────────────────────
+    const dist = mc.sharpe_distribution;
+    if (dist && dist.length > 1) {
+      const svgW = 400, svgH = 60, pad = 4;
+      const mn = Math.min(...dist), mx = Math.max(...dist);
+      const span = Math.max(mx - mn, 1e-6);
+      const pts = dist.map((v, i) => {
+        const x = pad + (svgW - 2 * pad) * i / (dist.length - 1);
+        const y = svgH - pad - (svgH - 2 * pad) * (v - mn) / span;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      });
+      const pathD = `M ${pts[0]} ` + pts.slice(1).map(p => `L ${p}`).join(' ');
+      // zero-line
+      const zeroY = svgH - pad - (svgH - 2 * pad) * (0 - mn) / span;
+      const zeroX = pad + (svgW - 2 * pad) * (0 - mn) / span;
+      const sparkSvg = document.getElementById('mcSparkline');
+      sparkSvg.innerHTML = `
+        <line x1="${zeroX.toFixed(1)}" y1="${pad}" x2="${zeroX.toFixed(1)}" y2="${svgH - pad}" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="3 2" />
+        <path d="${pathD} L ${(svgW-pad).toFixed(1)},${svgH-pad} L ${pad},${svgH-pad} Z" fill="rgba(114,214,172,0.12)" />
+        <path d="${pathD}" fill="none" stroke="#72d6ac" stroke-width="2" stroke-linejoin="round" />
+      `;
+      document.getElementById('mcSparkP5').innerText    = `P5: ${dec(mc.sharpe_ci_low)}`;
+      document.getElementById('mcSparkMedian').innerText = `Median: ${dec(mc.sharpe_ci_mid)}`;
+      document.getElementById('mcSparkP95').innerText   = `P95: ${dec(mc.sharpe_ci_high)}`;
+    }
+
+    // ── Forward Fan Chart ───────────────────────────────────────────────
+    if (!fwd) return;
+    document.getElementById('mcForwardHorizon').innerText = `${fwd.horizon_days} days`;
+    document.getElementById('mcForwardRange').innerText =
+      `${fwd.horizon_days} trading days forward  ·  Anchored at ₹${fwd.last_equity.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+
+    const W = 1200, H = 360, PAD = 28;
+    // Combine all values for y-scale
+    const allVals = [...fwd.p10, ...fwd.p50, ...fwd.p90];
+    const yMin = Math.min(...allVals) * 0.995;
+    const yMax = Math.max(...allVals) * 1.005;
+    const ySpan = Math.max(yMax - yMin, 1);
+
+    // X: forward section takes right 70% of chart
+    // Left 30%: draw historical tail (last N points of existing chart)
+    const HIST_W = (W - 2 * PAD) * 0.28;
+    const FWD_X0 = PAD + HIST_W;
+    const FWD_W  = (W - 2 * PAD) * 0.72;
+    const n = fwd.p50.length;
+
+    function fwdX(i) { return FWD_X0 + FWD_W * i / Math.max(n - 1, 1); }
+    function valY(v) { return H - PAD - (H - 2 * PAD) * (v - yMin) / ySpan; }
+
+    function pathFromArr(arr) {
+      const pts = arr.map((v, i) => `${fwdX(i).toFixed(1)},${valY(v).toFixed(1)}`);
+      return `M ${pts[0]} ` + pts.slice(1).map(p => `L ${p}`).join(' ');
+    }
+
+    const p10d = pathFromArr(fwd.p10);
+    const p50d = pathFromArr(fwd.p50);
+    const p90d = pathFromArr(fwd.p90);
+
+    // Fan fill: p90 forward then p10 reversed
+    const p90pts = fwd.p90.map((v, i) => `${fwdX(i).toFixed(1)},${valY(v).toFixed(1)}`);
+    const p10pts = fwd.p10.map((v, i) => `${fwdX(i).toFixed(1)},${valY(v).toFixed(1)}`);
+    const fanD = `M ${p90pts[0]} ` + p90pts.slice(1).map(p => `L ${p}`).join(' ') +
+                 ` L ${p10pts[p10pts.length-1]} ` +
+                 [...p10pts].reverse().slice(1).map(p => `L ${p}`).join(' ') + ' Z';
+
+    // Historical tail: use last 40 points from existing chartPoints
+    const tailPts = chartPoints.slice(-40);
+    let histD = '';
+    if (tailPts.length > 1) {
+      const histYMin = Math.min(...tailPts.map(p => p.value), yMin);
+      const histYMax = Math.max(...tailPts.map(p => p.value), yMax);
+      const histSpan = Math.max(histYMax - histYMin, 1);
+      // We use the same yScale as forward so the join is seamless
+      const tailScaled = tailPts.map((p, i) => {
+        const x = PAD + HIST_W * i / Math.max(tailPts.length - 1, 1);
+        const y = H - PAD - (H - 2 * PAD) * (p.value - yMin) / ySpan;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      });
+      histD = `M ${tailScaled[0]} ` + tailScaled.slice(1).map(p => `L ${p}`).join(' ');
+    }
+
+    document.getElementById('mcHistPath').setAttribute('d', histD);
+    document.getElementById('mcFanFill').setAttribute('d', fanD);
+    document.getElementById('mcP10Path').setAttribute('d', p10d);
+    document.getElementById('mcP50Path').setAttribute('d', p50d);
+    document.getElementById('mcP90Path').setAttribute('d', p90d);
+    // Today divider at FWD_X0
+    document.getElementById('mcTodayLine').setAttribute('x1', FWD_X0.toFixed(1));
+    document.getElementById('mcTodayLine').setAttribute('x2', FWD_X0.toFixed(1));
+    document.getElementById('mcTodayLabel').setAttribute('x', (FWD_X0 + 4).toFixed(1));
   }
 </script>
 {% endblock %}

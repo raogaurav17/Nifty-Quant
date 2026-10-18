@@ -1329,3 +1329,278 @@ select.select-input:focus,
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ── Secondary button (Run Monte Carlo) ── */
+.secondary-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px 20px;
+  min-height: 48px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(114, 214, 172, 0.35);
+  background: rgba(114, 214, 172, 0.08);
+  color: #bfe9d4;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+  letter-spacing: 0.01em;
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background: rgba(114, 214, 172, 0.15);
+  border-color: rgba(114, 214, 172, 0.55);
+  box-shadow: 0 4px 16px rgba(114, 214, 172, 0.12);
+}
+
+.secondary-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ── Monte Carlo Section ── */
+.mc-section {
+  margin-top: 32px;
+  padding: 0 0 48px;
+}
+
+.mc-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.mc-section-header h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+}
+
+.mc-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  max-width: 62ch;
+}
+
+/* Progress bar inside the MC header */
+.mc-progress-wrap {
+  min-width: 260px;
+  max-width: 360px;
+  flex-shrink: 0;
+}
+
+.mc-progress-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.mc-progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #72d6ac, #bfe9d4);
+  transition: width 0.3s ease;
+}
+
+.mc-progress-label {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--muted);
+}
+
+/* Two-column MC grid */
+.mc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.mc-ci-panel,
+.mc-forward-panel {
+  padding: 24px;
+}
+
+/* CI Table */
+.mc-ci-table-wrap {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.mc-ci-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.mc-ci-table thead tr {
+  border-bottom: 1px solid var(--stroke);
+}
+
+.mc-ci-table th {
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--faint);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.mc-ci-table td {
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(202, 220, 224, 0.07);
+  color: var(--text);
+}
+
+.mc-ci-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mc-ci-table tbody tr:hover td {
+  background: rgba(114, 214, 172, 0.04);
+}
+
+.mc-metric-name {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.mc-ci-mid {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+  color: #dff5eb;
+  background: rgba(114, 214, 172, 0.07);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.mc-ci-bound {
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.mc-mid-col {
+  text-align: center;
+}
+
+.mc-prob-note {
+  color: var(--faint);
+  font-size: 0.72rem;
+  margin-left: 4px;
+}
+
+/* Sharpe sparkline */
+.mc-sparkline-wrap {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--stroke);
+}
+
+.mc-sparkline-label {
+  margin: 0 0 10px;
+}
+
+.mc-sparkline {
+  display: block;
+  width: 100%;
+  height: 60px;
+  border-radius: 8px;
+  background: rgba(5, 9, 10, 0.22);
+}
+
+.mc-sparkline-legend {
+  display: flex;
+  gap: 20px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.mc-legend-val {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.mc-legend-mid {
+  color: #72d6ac;
+  font-weight: 700;
+}
+
+/* Forward chart */
+.mc-forward-panel .chart-frame svg {
+  height: 300px;
+}
+
+/* Responsive */
+@media (max-width: 1080px) {
+  .mc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mc-section-header {
+    flex-direction: column;
+  }
+
+  .mc-progress-wrap {
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* Monte Carlo Launch Banner in Results */
+.mc-launch-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 18px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, rgba(114, 214, 172, 0.08), rgba(20, 35, 28, 0.6));
+  border: 1px solid rgba(114, 214, 172, 0.3);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  flex-wrap: wrap;
+}
+
+.mc-launch-text {
+  flex: 1 1 320px;
+}
+
+.mc-hero-launch-btn {
+  background: linear-gradient(135deg, #72d6ac, #3ca87d);
+  color: #071710;
+  font-weight: 700;
+  padding: 12px 24px;
+  min-height: 46px;
+  font-size: 0.95rem;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(114, 214, 172, 0.3);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+  border: none;
+}
+
+.mc-hero-launch-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(114, 214, 172, 0.45);
+}
+
+.mc-hero-launch-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}

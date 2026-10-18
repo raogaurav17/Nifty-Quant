@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from nifty_quant.application.backtest_runner import load_config
-from nifty_quant.application.job_manager import JobManager, JobStatus
+from nifty_quant.application.job_manager import JobManager, JobStatus, MCJob
 from nifty_quant.domain.strategies.registry import available_strategies
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -129,6 +129,81 @@ async def get_job_status(job_id: str) -> JSONResponse:
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return JSONResponse(job_manager.to_dict(job))
+
+
+@app.post("/api/mc/run")
+async def run_mc_api(
+    payload: dict[str, Any] | None = Body(None),
+) -> JSONResponse:
+    """Submit a Monte Carlo simulation job for a completed backtest.
+
+    Body fields:
+        source_job_id (str):   ID of a completed backtest job.
+        n_simulations (int):   Bootstrap resamples (default 2000).
+        horizon_days (int):    Forward projection horizon in trading days (default 252).
+    """
+    if not payload or "source_job_id" not in payload:
+        raise HTTPException(status_code=422, detail="source_job_id is required.")
+
+    source_job_id = str(payload["source_job_id"])
+    n_simulations = int(payload.get("n_simulations", 2000))
+    horizon_days = int(payload.get("horizon_days", 252))
+
+    try:
+        mc_job = job_manager.submit_mc_job(
+            source_job_id=source_job_id,
+            n_simulations=n_simulations,
+            horizon_days=horizon_days,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return JSONResponse(job_manager.to_dict(mc_job))
+
+
+@app.get("/api/mc/{mc_job_id}")
+async def get_mc_status(mc_job_id: str) -> JSONResponse:
+    """Query current status and results of a Monte Carlo job."""
+    job = job_manager.get_job(mc_job_id)
+    if not job or not isinstance(job, MCJob):
+        raise HTTPException(status_code=404, detail="MC job not found")
+    return JSONResponse(job_manager.to_dict(job))
+
+
+@app.websocket("/ws/mc/{mc_job_id}")
+async def websocket_mc_progress(websocket: WebSocket, mc_job_id: str) -> None:
+    """Stream live Monte Carlo progress over WebSocket (mirrors /ws/backtest pattern)."""
+    await websocket.accept()
+    job = job_manager.get_job(mc_job_id)
+    if not job or not isinstance(job, MCJob):
+        await websocket.send_json({"error": "MC job not found", "status": "FAILED"})
+        await websocket.close()
+        return
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    def listener(data: dict[str, Any]) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, data)
+
+    job_manager.add_listener(mc_job_id, listener)
+    current = job_manager.to_dict(job)
+    await websocket.send_json(current)
+    if current["status"] in (JobStatus.COMPLETED.value, JobStatus.FAILED.value):
+        job_manager.remove_listener(mc_job_id, listener)
+        await websocket.close()
+        return
+
+    try:
+        while True:
+            data = await queue.get()
+            await websocket.send_json(data)
+            if data.get("status") in (JobStatus.COMPLETED.value, JobStatus.FAILED.value):
+                break
+    except WebSocketDisconnect:
+        pass
+    finally:
+        job_manager.remove_listener(mc_job_id, listener)
 
 
 @app.websocket("/ws/backtest/{job_id}")

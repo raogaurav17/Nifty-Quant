@@ -138,3 +138,59 @@ def test_websocket_returns_already_completed_job():
     assert data["status"] == JobStatus.COMPLETED.value
     assert data["progress"] == 1.0
     manager.jobs.pop(job.job_id, None)
+
+
+def test_mc_job_lifecycle():
+    manager = JobManager.get_instance()
+    overrides = ["strategy=momentum_12_1", "backtest.start_date=2024-01-01", "backtest.end_date=2024-03-01"]
+
+    bt_job = manager.submit_job(overrides)
+    start_wait = time.time()
+    while bt_job.status in (JobStatus.QUEUED, JobStatus.RUNNING) and (time.time() - start_wait) < 5:
+        time.sleep(0.05)
+    assert bt_job.status == JobStatus.COMPLETED
+
+    mc_job = manager.submit_mc_job(source_job_id=bt_job.job_id, n_simulations=50, horizon_days=30)
+    assert mc_job.job_id is not None
+    assert mc_job.status in (JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.COMPLETED)
+
+    start_wait = time.time()
+    while mc_job.status in (JobStatus.QUEUED, JobStatus.RUNNING) and (time.time() - start_wait) < 5:
+        time.sleep(0.05)
+
+    assert mc_job.status == JobStatus.COMPLETED
+    assert mc_job.mc_result is not None
+    assert mc_job.forward is not None
+    assert mc_job.mc_result.n_simulations == 50
+    assert len(mc_job.forward.p50) == 30
+
+
+@pytest.mark.anyio
+async def test_mc_web_api_endpoints():
+    manager = JobManager.get_instance()
+    overrides = ["strategy=momentum_12_1", "backtest.start_date=2024-01-01", "backtest.end_date=2024-03-01"]
+    bt_job = manager.submit_job(overrides)
+
+    start_wait = time.time()
+    while bt_job.status in (JobStatus.QUEUED, JobStatus.RUNNING) and (time.time() - start_wait) < 5:
+        time.sleep(0.05)
+    assert bt_job.status == JobStatus.COMPLETED
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+        # Invalid source job
+        bad_resp = await client.post("/api/mc/run", json={"source_job_id": "nonexistent"})
+        assert bad_resp.status_code == 400
+
+        # Valid source job
+        payload = {"source_job_id": bt_job.job_id, "n_simulations": 50, "horizon_days": 30}
+        resp = await client.post("/api/mc/run", json=payload)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "job_id" in data
+        mc_job_id = data["job_id"]
+
+        status_resp = await client.get(f"/api/mc/{mc_job_id}")
+        assert status_resp.status_code == 200
+        status_data = status_resp.json()
+        assert status_data["job_id"] == mc_job_id
+
