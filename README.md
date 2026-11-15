@@ -156,6 +156,25 @@ uv run uvicorn nifty_quant.web.app:app --reload
 
 Navigate to `http://127.0.0.1:8000`.
 
+### Neon and Vercel authentication
+
+The auth tables use Neon Postgres when `DATABASE_URL` is available. The Neon
+CLI writes that value to the git-ignored `.env.local` file, which is loaded
+automatically for local development. Without it, tests and local development
+fall back to SQLite.
+
+For Vercel, add these environment variables to the project settings:
+
+```text
+DATABASE_URL=<Neon pooled connection string>
+SECRET_KEY=<long random JWT signing key>
+VERCEL=1
+```
+
+Use the pooled `DATABASE_URL` for application traffic. Keep
+`DATABASE_URL_UNPOOLED` for migrations and administrative tasks. Do not commit
+`.env.local` or paste any connection string into source control.
+
 ---
 
 ## Project Structure

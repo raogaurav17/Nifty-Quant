@@ -8,13 +8,12 @@ SHA-256 hashes in the database and rotated on every refresh call.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 import jwt as pyjwt
-import peewee
-
 from nifty_quant.auth.dependencies import get_current_user
-from nifty_quant.auth.models import RefreshToken, User
+from nifty_quant.auth.models import IntegrityError, RefreshToken, User
 from nifty_quant.auth.schemas import (
     LoginRequest,
     RegisterRequest,
@@ -55,13 +54,14 @@ def _set_auth_cookies(
     refresh_token: str,
 ) -> None:
     """Write ``HttpOnly`` cookies for the web dashboard."""
+    secure = bool(os.environ.get("VERCEL"))
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
         samesite="lax",
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        secure=False,  # flip to True behind HTTPS in production
+        secure=secure,
     )
     response.set_cookie(
         key="refresh_token",
@@ -69,7 +69,7 @@ def _set_auth_cookies(
         httponly=True,
         samesite="lax",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-        secure=False,
+        secure=secure,
     )
 
 
@@ -121,7 +121,7 @@ def register(body: RegisterRequest, response: Response) -> TokenResponse:
             username=body.username.strip(),
             hashed_password=hash_password(body.password),
         )
-    except peewee.IntegrityError as exc:
+    except IntegrityError as exc:
         detail = "Email or username already taken"
         err_msg = str(exc).lower()
         if "email" in err_msg:
@@ -141,7 +141,7 @@ def register(body: RegisterRequest, response: Response) -> TokenResponse:
 def login(body: LoginRequest, response: Response) -> TokenResponse:
     """Validate credentials and return access + refresh tokens."""
     try:
-        user = User.get(User.email == body.email.lower().strip())
+        user = User.get(("email", body.email.lower().strip()))
     except User.DoesNotExist:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
@@ -182,7 +182,7 @@ def refresh(request: Request, response: Response) -> TokenResponse:
     # Server-side revocation check
     th = hash_token(token)
     try:
-        stored = RefreshToken.get(RefreshToken.token_hash == th)
+        stored = RefreshToken.get(("token_hash", th))
     except RefreshToken.DoesNotExist:
         raise HTTPException(status_code=401, detail="Refresh token not recognised")
 
@@ -223,7 +223,7 @@ def logout(request: Request, response: Response) -> None:
     if rt:
         th = hash_token(rt)
         try:
-            stored = RefreshToken.get(RefreshToken.token_hash == th)
+            stored = RefreshToken.get(("token_hash", th))
             stored.revoked = True
             stored.save()
         except RefreshToken.DoesNotExist:
@@ -231,4 +231,3 @@ def logout(request: Request, response: Response) -> None:
 
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
-

@@ -22,6 +22,8 @@ SECRET_KEY: str = os.environ.get(
     "SECRET_KEY",
     "dev-secret-key-do-not-use-in-production",
 )
+if os.environ.get("VERCEL") and SECRET_KEY == "dev-secret-key-do-not-use-in-production":
+    raise RuntimeError("SECRET_KEY must be configured in Vercel environment variables")
 ALGORITHM: str = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.environ.get("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
