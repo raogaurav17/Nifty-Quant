@@ -212,3 +212,8 @@ outputs/
 .vscode/
 
 cache_data/
+
+# Application database
+data/*.db
+data/*.db-wal
+data/*.db-shm

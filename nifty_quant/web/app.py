@@ -3,16 +3,28 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import (
+    Body,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from nifty_quant.application.backtest_runner import load_config
 from nifty_quant.application.job_manager import JobManager, JobStatus, MCJob
+from nifty_quant.auth.dependencies import get_optional_user
+from nifty_quant.auth.models import init_db
+from nifty_quant.auth.router import router as auth_router
 from nifty_quant.domain.strategies.registry import available_strategies
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -21,8 +33,20 @@ STATIC_DIR = BASE_DIR / "static"
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-app = FastAPI(title="Nifty-Quant Dashboard")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Initialise the auth database when the application starts."""
+    from nifty_quant.auth.models import db
+
+    if db.database is None:
+        init_db()
+    yield
+
+
+app = FastAPI(title="Nifty-Quant Dashboard", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.include_router(auth_router)
 
 job_manager = JobManager.get_instance()
 
@@ -242,9 +266,18 @@ async def websocket_backtest_progress(websocket: WebSocket, job_id: str) -> None
         job_manager.remove_listener(job_id, listener)
 
 
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request) -> HTMLResponse:
+    """Render the login and registration page."""
+    return templates.TemplateResponse(request, "login.html")
+
+
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request) -> HTMLResponse:
+def dashboard(request: Request, user=Depends(get_optional_user)) -> HTMLResponse:
     """Render interactive backtest control dashboard and visualizer."""
+    if user is None:
+        return RedirectResponse(url="/login", status_code=302)
+
     base_cfg = load_config([])
     form_values = _query_values(request, base_cfg)
 

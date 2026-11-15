@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 from fastapi.testclient import TestClient
 
 from nifty_quant.application.job_manager import BacktestJob, JobManager, JobStatus

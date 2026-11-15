@@ -406,6 +406,153 @@ select.select-input:focus {
   transform: translateY(0);
 }
 
+/* Authentication */
+.auth-container {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 170px);
+  padding: 18px 0 42px;
+}
+
+.auth-card {
+  width: min(100%, 520px);
+  padding: 34px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(114, 214, 172, 0.1), transparent 34%),
+    linear-gradient(160deg, rgba(25, 30, 32, 0.98), rgba(15, 19, 20, 0.96));
+}
+
+.auth-header {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 26px;
+}
+
+.auth-header .eyebrow {
+  color: #8ed8ba;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+}
+
+.auth-header h2 {
+  font-size: clamp(2rem, 5vw, 2.8rem);
+  line-height: 1;
+}
+
+.auth-subtitle {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.auth-tabs {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  padding: 5px;
+  margin-bottom: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.auth-tab {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--muted);
+  background: transparent;
+  font: 500 0.86rem "Space Grotesk", sans-serif;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.auth-tab:hover {
+  color: var(--text);
+}
+
+.auth-tab.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.auth-form {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form label {
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+.auth-form input {
+  min-height: 48px;
+  border-radius: 13px;
+  background: rgba(9, 14, 15, 0.52);
+  border-color: rgba(255, 255, 255, 0.14);
+  font-size: 0.95rem;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.auth-form input::placeholder {
+  color: #687578;
+}
+
+.auth-form input:hover {
+  background: rgba(9, 14, 15, 0.7);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.auth-form input:focus {
+  border-color: rgba(142, 216, 186, 0.7);
+  background: rgba(9, 14, 15, 0.78);
+  box-shadow: 0 0 0 3px rgba(114, 214, 172, 0.12);
+}
+
+.auth-submit-btn {
+  margin-top: 4px;
+  color: #0c211a;
+  background: linear-gradient(135deg, #e1f8ed, #a9dec8);
+}
+
+.auth-submit-btn:hover {
+  box-shadow: 0 12px 30px rgba(114, 214, 172, 0.18);
+}
+
+.auth-error {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 16px;
+  padding: 11px 13px;
+  border: 1px solid rgba(255, 125, 134, 0.35);
+  border-radius: 12px;
+  color: #ffb9be;
+  background: rgba(255, 125, 134, 0.08);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.auth-footer-text {
+  position: relative;
+  z-index: 1;
+  margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--faint);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .status-panel,
 .chart-panel,
 .holdings-panel {
@@ -1545,6 +1692,10 @@ select.select-input:focus,
 
 /* Responsive */
 @media (max-width: 1080px) {
+  .auth-card {
+    padding: 28px;
+  }
+
   .mc-grid {
     grid-template-columns: 1fr;
   }

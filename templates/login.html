@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In — Nifty-Quant{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card panel">
+    <div class="auth-header">
+      <p class="eyebrow">Authentication</p>
+      <h2>Welcome</h2>
+      <p class="auth-subtitle">Sign in to access the backtest dashboard</p>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="loginTab" type="button">Sign In</button>
+      <button class="auth-tab" id="registerTab" type="button">Create Account</button>
+    </div>
+
+    <div id="authError" class="auth-error" style="display:none"></div>
+
+    <!-- Login form -->
+    <form id="loginForm" class="auth-form">
+      <label>
+        <span>Email</span>
+        <input type="email" name="email" required autocomplete="email" placeholder="you@example.com">
+      </label>
+      <label>
+        <span>Password</span>
+        <input type="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+      </label>
+      <button type="submit" class="primary-btn auth-submit-btn" id="loginSubmit">Sign in</button>
+    </form>
+
+    <!-- Register form -->
+    <form id="registerForm" class="auth-form" style="display:none">
+      <label>
+        <span>Email</span>
+        <input type="email" name="email" required autocomplete="email" placeholder="you@example.com">
+      </label>
+      <label>
+        <span>Username</span>
+        <input type="text" name="username" required autocomplete="username" placeholder="johndoe"
+               pattern="^[a-zA-Z0-9_-]+$" minlength="3" maxlength="100"
+               title="Letters, numbers, dashes and underscores only">
+      </label>
+      <label>
+        <span>Password</span>
+        <input type="password" name="password" required autocomplete="new-password"
+               placeholder="Min. 8 characters" minlength="8">
+      </label>
+      <button type="submit" class="primary-btn auth-submit-btn" id="registerSubmit">Create account</button>
+    </form>
+
+    <p class="auth-footer-text">
+      For educational and research purposes only.
+    </p>
+  </div>
+</div>
+
+<script>
+  const loginTab = document.getElementById('loginTab');
+  const registerTab = document.getElementById('registerTab');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const authError = document.getElementById('authError');
+
+  function switchTab(tab) {
+    loginForm.style.display = tab === 'login' ? 'grid' : 'none';
+    registerForm.style.display = tab === 'register' ? 'grid' : 'none';
+    loginTab.classList.toggle('active', tab === 'login');
+    registerTab.classList.toggle('active', tab === 'register');
+    authError.style.display = 'none';
+  }
+
+  loginTab.addEventListener('click', () => switchTab('login'));
+  registerTab.addEventListener('click', () => switchTab('register'));
+
+  function showError(msg) {
+    authError.textContent = msg;
+    authError.style.display = 'block';
+  }
+
+  async function submitAuth(endpoint, form, btn) {
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Please wait…';
+    authError.style.display = 'none';
+
+    const formData = new FormData(form);
+    const payload = Object.fromEntries(formData);
+
+    try {
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        showError(err.detail || `Server error (HTTP ${resp.status})`);
+        return;
+      }
+
+      // Cookies are set by the server — redirect to dashboard
+      window.location.href = '/';
+    } catch (err) {
+      showError('Network error: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+
+  loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    submitAuth('/auth/login', loginForm, document.getElementById('loginSubmit'));
+  });
+
+  registerForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    submitAuth('/auth/register', registerForm, document.getElementById('registerSubmit'));
+  });
+</script>
+{% endblock %}
+
