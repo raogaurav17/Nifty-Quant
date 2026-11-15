@@ -392,23 +392,169 @@ uv run python main.py data.use_cache=false
 
 ## Architecture
 
+The project is organized around a small application layer that coordinates
+domain services and infrastructure adapters. The same backtest pipeline is
+available from the CLI and the FastAPI dashboard.
+
+### High-level architecture
+
+```mermaid
+flowchart TB
+    User[User] --> UI[Web dashboard<br/>Jinja2 + JavaScript]
+    CLI[CLI<br/>nifty_quant.main] --> Runner[Backtest runner]
+    UI --> Web[FastAPI application]
+    Web --> Auth[Auth router<br/>JWT + HTTP-only cookies]
+    Web --> Jobs[JobManager<br/>ThreadPoolExecutor]
+    Jobs --> Runner
+    Web -. status polling .-> Jobs
+    Web -. progress WebSocket .-> Jobs
+
+    Runner --> Config[Hydra configuration]
+    Runner --> Factory[Strategy and universe factories]
+    Factory --> Engine[BacktestEngine]
+    Engine --> Strategy[Strategy implementations]
+    Engine --> Universe[DynamicUniverseProvider]
+    Engine --> Prices[CachedPriceRepository]
+    Engine --> Execution[IndiaEquitiesExecutionModel]
+    Engine --> Metrics[Performance metrics]
+
+    Prices --> Cache[Local price cache<br/>CSV + interval registry]
+    Prices --> Yahoo[Yahoo Finance]
+
+    Auth --> Neon[(Neon Postgres<br/>users + refresh_tokens)]
+    Auth -. local fallback .-> SQLite[(SQLite<br/>development/tests)]
+    Web --> Templates[Templates + static assets]
 ```
-Web Dashboard (FastAPI / WebSockets) / CLI
-    ├── POST /api/backtest/run
-    │      └── JobManager.submit_job() [ThreadPoolExecutor]
-    │              └── build_backtest_snapshot(DictConfig, progress_callback)
-    │                      ├── build_universe(universe_cfg) ← Dynamic or Static UniverseProvider
-    │                      ├── build_strategy(cfg)          ← registry factory
-    │                      │       └── Strategy.select_and_weight() [evaluated on active constituents]
-    │                      └── BacktestEngine.run(progress_callback)
-    │                              ├── UniverseProvider     ← time-aware constituent membership
-    │                              ├── CachedPriceRepository ← interval math & local cache
-    │                              │       ├── IntervalRegistry (intervals.json)
-    │                              │       ├── LocalPriceStore  (prices/*.csv)
-    │                              │       └── YahooPriceRepository (upstream fallback)
-    │                              └── ExecutionModel       ← transaction costs & slippage
-    └── WebSocket /ws/backtest/{job_id} ← streams real-time status & progress %
+
+### UML class diagram
+
+The diagram shows the principal domain abstractions and the adapters that
+implement them. Strategies, price repositories, universe providers, and
+execution models are interchangeable through their interfaces.
+
+```mermaid
+classDiagram
+    class BacktestEngine {
+        +run(prices, strategy, universe, execution_model)
+        +rebalance()
+    }
+    class Strategy {
+        <<abstract>>
+        +min_history_days
+        +compute_signals()
+        +select_and_weight()
+    }
+    class LowVolatilityStrategy
+    class Momentum12_1Strategy
+    class ARIMAStrategy
+    Strategy <|-- LowVolatilityStrategy
+    Strategy <|-- Momentum12_1Strategy
+    Strategy <|-- ARIMAStrategy
+
+    class UniverseProvider {
+        <<interface>>
+        +symbols_on(date)
+    }
+    class DynamicUniverseProvider
+    UniverseProvider <|.. DynamicUniverseProvider
+
+    class PriceRepository {
+        <<interface>>
+        +get_prices(symbols, start_date, end_date)
+    }
+    class CachedPriceRepository
+    class YahooPriceRepository
+    PriceRepository <|.. CachedPriceRepository
+    PriceRepository <|.. YahooPriceRepository
+    CachedPriceRepository --> YahooPriceRepository : missing intervals
+    CachedPriceRepository --> IntervalRegistry
+    CachedPriceRepository --> LocalPriceStore
+
+    class ExecutionModel {
+        <<interface>>
+        +transaction_cost()
+        +apply_slippage()
+    }
+    class IndiaEquitiesExecutionModel
+    ExecutionModel <|.. IndiaEquitiesExecutionModel
+
+    class JobManager {
+        +submit_job(overrides)
+        +get_job(job_id)
+        +add_listener(job_id, listener)
+    }
+    class BacktestSnapshot
+    class BacktestResult
+    class PerformanceMetrics
+
+    JobManager --> BacktestSnapshot
+    BacktestSnapshot --> BacktestResult
+    BacktestSnapshot --> PerformanceMetrics
+    BacktestEngine --> Strategy
+    BacktestEngine --> UniverseProvider
+    BacktestEngine --> PriceRepository
+    BacktestEngine --> ExecutionModel
+
+    class User {
+        +id
+        +email
+        +username
+        +hashed_password
+        +is_active
+    }
+    class RefreshToken {
+        +id
+        +user_id
+        +token_hash
+        +expires_at
+        +revoked
+    }
+    User "1" --> "0..*" RefreshToken
 ```
+
+### Data flow diagram
+
+```mermaid
+flowchart LR
+    User[User] -->|credentials| AuthAPI[Auth API]
+    AuthAPI -->|bcrypt hash / verify| Password[Password service]
+    AuthAPI -->|JWT + cookie| Browser[Browser]
+    AuthAPI <-->|users and refresh-token hashes| AuthDB[(Neon Postgres)]
+    AuthAPI -. local development .-> LocalAuth[(SQLite fallback)]
+
+    User -->|strategy, dates, risk parameters| Dashboard[Dashboard]
+    Dashboard -->|POST /api/backtest/run| API[FastAPI API]
+    API -->|submit job| Queue[JobManager queue]
+    Queue -->|overrides + callback| Runner[Backtest runner]
+    Runner -->|load| Hydra[Hydra config]
+    Runner -->|build| Engine[Backtest engine]
+    Engine -->|constituent lookup| Universe[Dynamic NIFTY 50 timeline]
+    Engine -->|price request| Cache[Cached price repository]
+    Cache -->|read/write| Files[Local price cache]
+    Cache -->|missing ranges| Yahoo[Yahoo Finance]
+    Engine -->|signals and weights| Strategy[Selected strategy]
+    Engine -->|costs and slippage| Execution[Execution model]
+    Engine -->|result| Queue
+    Queue -->|status JSON| API
+    API -->|polling + WebSocket updates| Dashboard
+```
+
+### Request and backtest flow
+
+1. The dashboard authenticates through `/auth/login` or
+   `/auth/register`. Passwords are bcrypt-hashed, while access and refresh
+   tokens are delivered in HTTP-only cookies.
+2. A backtest request reaches `POST /api/backtest/run`. The API submits work
+   to `JobManager` so long-running calculations do not block the ASGI event
+   loop.
+3. `BacktestRunner` loads Hydra configuration, creates the selected strategy
+   and dynamic universe provider, and invokes `BacktestEngine`.
+4. The cached price repository reads local intervals and downloads only
+   missing ranges from Yahoo Finance.
+5. The engine evaluates signals, applies portfolio sizing and transaction
+   costs, and produces a `BacktestSnapshot`.
+6. The API exposes job status through REST and streams progress through
+   `/ws/backtest/{job_id}`.
 
 The engine is **strategy-agnostic** — it schedules rebalances, dynamically filters eligible stocks based on index reconstitution on each date, applies costs, and builds the equity curve. All signal generation and sizing live inside the injected `Strategy` object, while compute runs asynchronously off the main ASGI event loop.
 
