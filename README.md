@@ -163,17 +163,60 @@ CLI writes that value to the git-ignored `.env.local` file, which is loaded
 automatically for local development. Without it, tests and local development
 fall back to SQLite.
 
-For Vercel, add these environment variables to the project settings:
+#### Local setup
+
+Generate a signing secret with Python (OpenSSL is not required):
+
+```bash
+uv run python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Add the generated value to your local `.env.local` file:
+
+```text
+SECRET_KEY=<long random JWT signing key>
+```
+
+The Neon CLI populates these values in `.env.local`:
+
+```text
+DATABASE_URL
+DATABASE_URL_UNPOOLED
+NEON_BRANCH
+NEON_BRANCH_ID
+NEON_AUTH_BASE_URL
+NEON_AUTH_JWKS_URL
+```
+
+Run the app locally with:
+
+```bash
+uv run uvicorn nifty_quant.web.app:app --reload
+```
+
+#### Vercel deployment
+
+In **Vercel → Project → Settings → Environment Variables**, add:
 
 ```text
 DATABASE_URL=<Neon pooled connection string>
-SECRET_KEY=<long random JWT signing key>
-VERCEL=1
+SECRET_KEY=<same or separately generated random JWT secret>
 ```
 
 Use the pooled `DATABASE_URL` for application traffic. Keep
-`DATABASE_URL_UNPOOLED` for migrations and administrative tasks. Do not commit
-`.env.local` or paste any connection string into source control.
+`DATABASE_URL_UNPOOLED` for migrations and administrative tasks. Vercel
+provides the `VERCEL` environment variable automatically; do not add it
+manually.
+
+After adding or changing variables, redeploy:
+
+```bash
+vercel --prod
+```
+
+Never commit `.env.local`, print connection strings in logs, or paste database
+credentials into source control. If a connection string or database password
+is exposed, rotate the Neon database password before using the deployment.
 
 ---
 
